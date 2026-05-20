@@ -1,7 +1,7 @@
 """
 data/market_data.py
 Lấy dữ liệu thị trường tổng quan: OHLCV, index, breadth.
-Sử dụng vnstock3 (TCBS / SSI source).
+Sử dụng vnstock 4.x API (Quote, Trading, Listing).
 """
 
 from __future__ import annotations
@@ -41,10 +41,10 @@ def get_ohlcv(ticker: str, period: str = "1m") -> pd.DataFrame:
     [date, open, high, low, close, volume]
     """
     try:
-        from vnstock import Vnstock  # type: ignore
+        from vnstock.api.quote import Quote  # type: ignore
         start, end = _date_range(period)
-        stock = Vnstock().stock(symbol=ticker, source="TCBS")
-        df = stock.quote.history(start=start, end=end, interval="1D")
+        q = Quote(symbol=ticker, source="VCI")
+        df = q.history(start=start, end=end, interval="1D")
         df = _normalize_ohlcv(df)
         return df.tail(PERIOD_DAYS[period]).reset_index(drop=True)
     except Exception as exc:
@@ -62,14 +62,14 @@ def get_multiple_ohlcv(tickers: list[str], period: str = "1m") -> dict[str, pd.D
 def get_index_data(index_code: str = "VNINDEX", period: str = "1m") -> pd.DataFrame:
     """
     Dữ liệu chỉ số (VNINDEX, HNX30, UPCOM…).
-    Thử TCBS trước, fallback sang VCI.
+    Dùng VCI source với vnstock 4.x Quote API.
     """
-    from vnstock import Vnstock  # type: ignore
+    from vnstock.api.quote import Quote  # type: ignore
     start, end = _date_range(period)
-    for source in ("TCBS", "VCI"):
+    for source in ("VCI", "KBS"):
         try:
-            stock = Vnstock().stock(symbol=index_code, source=source)
-            df = stock.quote.history(start=start, end=end, interval="1D")
+            q = Quote(symbol=index_code, source=source)
+            df = q.history(start=start, end=end, interval="1D")
             if not df.empty:
                 df = _normalize_ohlcv(df)
                 return df.tail(PERIOD_DAYS[period]).reset_index(drop=True)
@@ -83,34 +83,30 @@ def get_index_data(index_code: str = "VNINDEX", period: str = "1m") -> pd.DataFr
 def get_market_breadth() -> dict:
     """
     Số cổ phiếu tăng / giảm / đứng tham chiếu.
-    Dùng VCI price board với VN30 làm proxy (thay thế market_top_movers đã bị xóa).
+    Dùng KBS price_board với VN30 làm proxy.
     Trả về dict: {advance, decline, unchanged, ceiling, floor, total}
     """
     try:
-        from vnstock import Vnstock  # type: ignore
+        from vnstock.api.trading import Trading  # type: ignore
         from config.constants import VN30_TICKERS
 
-        board = Vnstock().stock(source="VCI").trading.price_board(symbols=VN30_TICKERS)
+        board = Trading(source="KBS").price_board(symbols_list=VN30_TICKERS)
         if board.empty:
             return {"advance": 0, "decline": 0, "unchanged": 0, "ceiling": 0, "floor": 0, "total": 0}
 
-        # Tìm cột thay đổi giá (ưu tiên theo tên phổ biến)
-        change_col = None
-        for candidate in ("priceChange", "price_change", "change", "changePct", "change_pct"):
-            if candidate in board.columns:
-                change_col = candidate
-                break
-
-        if change_col is None:
-            # Tính từ match_price và ref_price
-            price_col = next((c for c in board.columns if "match" in c.lower() and "price" in c.lower()), None)
-            ref_col   = next((c for c in board.columns if "ref" in c.lower()), None)
+        # KBS price_board trả về cột phẳng: price_change, close_price, ceiling_price, floor_price
+        change_col = "price_change"
+        if change_col not in board.columns:
+            # Thử tính từ close - reference
+            price_col = next((c for c in board.columns if "close" in c.lower()), None)
+            ref_col   = next((c for c in board.columns if "reference" in c.lower() or c == "re"), None)
             if price_col and ref_col:
-                board["_chg"] = pd.to_numeric(board[price_col], errors="coerce") - pd.to_numeric(board[ref_col], errors="coerce")
+                board = board.copy()
+                board["_chg"] = pd.to_numeric(board[price_col], errors="coerce") - \
+                                 pd.to_numeric(board[ref_col], errors="coerce")
                 change_col = "_chg"
-
-        if change_col is None:
-            return {"advance": 0, "decline": 0, "unchanged": 0, "ceiling": 0, "floor": 0, "total": len(board)}
+            else:
+                return {"advance": 0, "decline": 0, "unchanged": 0, "ceiling": 0, "floor": 0, "total": len(board)}
 
         changes   = pd.to_numeric(board[change_col], errors="coerce").fillna(0)
         advance   = int((changes > 0).sum())
@@ -118,18 +114,24 @@ def get_market_breadth() -> dict:
         unchanged = int((changes == 0).sum())
 
         # Ceiling / floor hits
-        price_col   = next((c for c in board.columns if "match" in c.lower() and "price" in c.lower()), None)
-        ceiling_col = next((c for c in board.columns if "ceil" in c.lower()), None)
-        floor_col   = next((c for c in board.columns if "floor" in c.lower() and "price" in c.lower()), None)
+        price_col   = next((c for c in board.columns if c in ("close_price", "match_price", "close")), None)
+        ceiling_col = next((c for c in board.columns if "ceiling" in c.lower()), None)
+        floor_col   = next((c for c in board.columns if "floor" in c.lower() and "price" not in c.lower()), None)
+        # KBS columns: ceiling_price, floor_price
+        if not ceiling_col:
+            ceiling_col = next((c for c in board.columns if c == "ceiling_price"), None)
+        if not floor_col:
+            floor_col = next((c for c in board.columns if c == "floor_price"), None)
+
         ceiling_hits = floor_hits = 0
         if price_col and ceiling_col:
             mp = pd.to_numeric(board[price_col], errors="coerce")
             cp = pd.to_numeric(board[ceiling_col], errors="coerce")
-            ceiling_hits = int((mp >= cp).sum())
+            ceiling_hits = int((mp >= cp * 0.999).sum())  # 0.1% tolerance
         if price_col and floor_col:
             mp = pd.to_numeric(board[price_col], errors="coerce")
             fp = pd.to_numeric(board[floor_col], errors="coerce")
-            floor_hits = int((mp <= fp).sum())
+            floor_hits = int((mp <= fp * 1.001).sum())
 
         return {
             "advance":   advance,
@@ -148,13 +150,13 @@ def get_market_breadth() -> dict:
 def get_all_tickers(exchange: str = "HOSE") -> list[str]:
     """Danh sách tất cả mã trên sàn (dùng vnstock 4.x Listing API)."""
     try:
-        from vnstock import Vnstock  # type: ignore
-        df = Vnstock().stock(source="VCI").listing.all_symbols()
-        # Lọc theo sàn nếu có cột exchange
+        from vnstock.api.listing import Listing  # type: ignore
+        df = Listing(source="KBS").symbols_by_exchange()
+        # Lọc theo sàn
         exch_col = next((c for c in df.columns if "exchange" in c.lower()), None)
         if exch_col:
             df = df[df[exch_col].str.upper() == exchange.upper()]
-        # Lấy cột symbol/ticker
+        # Lấy cột symbol
         sym_col = next(
             (c for c in df.columns if c.lower() in ("symbol", "ticker", "code")),
             df.columns[0]
@@ -163,3 +165,4 @@ def get_all_tickers(exchange: str = "HOSE") -> list[str]:
     except Exception as exc:
         log.warning("get_all_tickers(%s) lỗi: %s", exchange, exc)
         return []
+
