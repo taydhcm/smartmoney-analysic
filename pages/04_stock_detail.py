@@ -26,7 +26,7 @@ st.title("🔍 Chi Tiết Cổ Phiếu")
 # ── Controls ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     ticker = st.text_input("Mã cổ phiếu", value="VIC").upper().strip()
-    period = st.selectbox("Kỳ phân tích", ["1w", "2w", "1m", "3m"], index=2,
+    period = st.selectbox("Kỳ phân tích", ["1w", "2w", "1m", "3m"], index=0,
                           format_func=lambda x: {"1w":"1 tuần","2w":"2 tuần",
                                                  "1m":"1 tháng","3m":"3 tháng"}[x])
 
@@ -39,10 +39,10 @@ st.markdown(f"## 📊 {ticker}")
 # ── Load data ─────────────────────────────────────────────────────────────────
 with st.spinner(f"Đang tải dữ liệu {ticker}..."):
     ohlcv   = enrich_with_volume_indicators(get_ohlcv(ticker, period))
-    ff_df   = get_foreign_flow(ticker, period)
-    td_df   = get_tu_doan_flow(ticker, period)
+    ff_df   = get_foreign_flow(ticker, "1w")   # luôn lấy 1 tuần cho foreign flow
+    td_df   = get_tu_doan_flow(ticker, "1w")
     room    = get_foreign_room(ticker)
-    news    = search_cafef_news(ticker, limit=10)
+    news    = search_cafef_news(ticker, limit=100, days=7)  # tất cả tin 7 ngày
     sent    = aggregate_sentiment(news)
 
 # ── Smart Money Score ─────────────────────────────────────────────────────────
@@ -95,14 +95,15 @@ if not ohlcv.empty:
 
 # ── Row 3: Foreign Flow ───────────────────────────────────────────────────────
 st.divider()
-st.subheader("💰 Dòng Tiền Khối Ngoại")
+st.subheader("💰 Dòng Tiền Khối Ngoại (1 tuần gần nhất)")
+st.caption("Nguồn: KBS price-board – tích lũy từ đầu phiên hiện tại.")
+st.plotly_chart(foreign_flow_bar_chart(ff_df, ticker, days=7), use_container_width=True)
 if not ff_df.empty:
-    st.plotly_chart(foreign_flow_bar_chart(ff_df, ticker), use_container_width=True)
-    foreign_flow_table(ff_df)
+    foreign_flow_table(ff_df, title="Khối Ngoại")
 
 # ── Row 4: Tin tức ────────────────────────────────────────────────────────────
 st.divider()
-st.subheader("📰 Tin Tức & Sentiment")
+st.subheader("📰 Tin Tức & Sentiment (7 ngày gần nhất)")
 
 sent_color = {"positive": "🟢", "negative": "🔴", "neutral": "⚪"}.get(sent["label"], "⚪")
 st.markdown(
@@ -112,9 +113,13 @@ st.markdown(
     f"/ {sent['article_count']} bài"
 )
 
-for n in news[:5]:
-    with st.expander(n.get("title", "")[:80]):
-        st.write(n.get("summary", "")[:300])
-        st.caption(f"Nguồn: {n.get('source','cafef')} | {n.get('published','')}")
-        if n.get("url"):
-            st.markdown(f"[Đọc thêm]({n['url']})")
+if news:
+    st.caption(f"Tìm thấy {len(news)} bài viết liên quan trong 7 ngày gần nhất.")
+    for n in news:
+        with st.expander(n.get("title", "")[:100]):
+            st.write(n.get("summary", "")[:500])
+            st.caption(f"Nguồn: {n.get('source','cafef')} | {n.get('published','')}")
+            if n.get("url"):
+                st.markdown(f"[Đọc thêm]({n['url']})")
+else:
+    st.info(f"Không tìm thấy tin nào liên quan đến {ticker} trong 7 ngày gần nhất.")

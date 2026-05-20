@@ -67,25 +67,72 @@ def candlestick_volume_chart(df: pd.DataFrame, ticker: str) -> go.Figure:
     return fig
 
 
-def foreign_flow_bar_chart(df: pd.DataFrame, ticker: str) -> go.Figure:
-    """Biểu đồ cột dòng tiền ngoại theo ngày."""
+def foreign_flow_bar_chart(
+    df: pd.DataFrame,
+    ticker: str,
+    days: int = 7,
+) -> go.Figure:
+    """Biểu đồ cột dòng tiền ngoại – x-axis luôn trải đủ `days` ngày."""
+    from datetime import date, timedelta
+
     if df.empty or "net_val" not in df.columns:
-        return go.Figure()
+        # Vẫn trả về figure trống có x-axis 7 ngày
+        fig = go.Figure()
+        end_dt   = date.today()
+        start_dt = end_dt - timedelta(days=days)
+        fig.update_layout(
+            title=f"{ticker} – Khối ngoại Net (tỷ đồng) – {days} ngày gần nhất",
+            xaxis=dict(range=[str(start_dt), str(end_dt)], title="Ngày"),
+            yaxis_title="Tỷ đồng",
+            template="plotly_dark",
+            height=300,
+            margin=dict(l=40, r=20, t=40, b=20),
+        )
+        return fig
 
     colors = ["#26a69a" if v > 0 else "#ef5350" for v in df["net_val"]]
-    fig = go.Figure(go.Bar(
+    fig = go.Figure()
+
+    # Cột net buy/sell
+    fig.add_trace(go.Bar(
         x=df.get("date", df.index),
         y=df["net_val"] / 1e9,
         marker_color=colors,
-        name="Net value (tỷ đ)",
+        name="Net (tỷ đ)",
     ))
+
+    # Overlay buy / sell nếu có cột
+    if "buy_vol" in df.columns and "sell_vol" in df.columns:
+        fig.add_trace(go.Bar(
+            x=df.get("date", df.index),
+            y=df["buy_vol"] / 1e6,
+            marker_color="#26a69a",
+            opacity=0.4,
+            name="Mua (tr.cp)",
+            yaxis="y2",
+        ))
+        fig.add_trace(go.Bar(
+            x=df.get("date", df.index),
+            y=-df["sell_vol"] / 1e6,
+            marker_color="#ef5350",
+            opacity=0.4,
+            name="Bán (tr.cp)",
+            yaxis="y2",
+        ))
+
+    end_dt   = date.today()
+    start_dt = end_dt - timedelta(days=days)
+
     fig.update_layout(
-        title=f"{ticker} – Khối ngoại Net (tỷ đồng)",
-        xaxis_title="Ngày",
-        yaxis_title="Tỷ đồng",
+        title=f"{ticker} – Khối ngoại Net (tỷ đồng) – {days} ngày gần nhất",
+        xaxis=dict(range=[str(start_dt), str(end_dt)], title="Ngày"),
+        yaxis=dict(title="Tỷ đồng"),
+        yaxis2=dict(title="Triệu cp", overlaying="y", side="right", showgrid=False),
         template="plotly_dark",
-        height=300,
-        margin=dict(l=40, r=20, t=40, b=20),
+        height=320,
+        margin=dict(l=40, r=60, t=40, b=20),
+        barmode="overlay",
+        legend=dict(orientation="h", y=1.05),
     )
     return fig
 

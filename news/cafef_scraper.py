@@ -57,20 +57,47 @@ def fetch_cafef_rss(category: str = "thi_truong", limit: int = 20) -> list[dict]
 
 
 @ttl_cache(ttl=300)
-def search_cafef_news(ticker: str, limit: int = 10) -> list[dict]:
+def _parse_published(pub_str: str) -> "datetime | None":
+    """Parse RSS 'published' string thành datetime (timezone-aware → naive UTC+7)."""
+    if not pub_str:
+        return None
+    try:
+        from email.utils import parsedate_to_datetime
+        dt = parsedate_to_datetime(pub_str)
+        return dt.replace(tzinfo=None)          # drop tz, treat as local
+    except Exception:
+        pass
+    try:
+        from dateutil import parser as dp        # type: ignore
+        return dp.parse(pub_str, ignoretz=True)
+    except Exception:
+        return None
+
+
+@ttl_cache(ttl=300)
+def search_cafef_news(ticker: str, limit: int = 50, days: int = 7) -> list[dict]:
     """
-    Tìm tin liên quan đến ticker trên CafeF.
-    Strategy: lấy tất cả RSS → filter theo ticker trong title/summary.
+    Tìm tin liên quan đến ticker trên CafeF trong `days` ngày gần nhất.
+    Strategy: lấy tất cả RSS → filter theo ticker trong title/summary → filter theo ngày.
     """
     all_news: list[dict] = []
     for cat in CAFEF_RSS_FEEDS:
-        all_news.extend(fetch_cafef_rss(cat, limit=50))
+        all_news.extend(fetch_cafef_rss(cat, limit=100))
 
     ticker_upper = ticker.upper()
-    matched = [
-        n for n in all_news
-        if ticker_upper in n["title"].upper() or ticker_upper in n["summary"].upper()
-    ]
+    cutoff = datetime.utcnow() - timedelta(days=days)
+
+    matched = []
+    for n in all_news:
+        # Lọc theo ticker
+        if ticker_upper not in n["title"].upper() and ticker_upper not in n["summary"].upper():
+            continue
+        # Lọc theo ngày nếu có thể parse
+        pub_dt = _parse_published(n.get("published", ""))
+        if pub_dt is not None and pub_dt < cutoff:
+            continue        # bài cũ hơn `days` ngày → bỏ qua
+        matched.append(n)
+
     return matched[:limit]
 
 
