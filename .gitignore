@@ -1,0 +1,41 @@
+# ── Secrets & Environment ──────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.secret
+
+# Streamlit local secrets (KHÔNG commit file này)
+.streamlit/secrets.toml
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# ── Virtual Environments ──────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# ── Cache ─────────────────────────────────────────────────────
+.cache/
+*.cache
+*.diskcache
+
+# ── IDE ───────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
