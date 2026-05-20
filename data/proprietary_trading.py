@@ -19,18 +19,30 @@ log = get_logger(__name__)
 def get_tu_doan_flow(ticker: str, period: str = "1m") -> pd.DataFrame:
     """
     Dữ liệu tự doanh cho 1 mã theo ngày.
+    Dùng vnstock 4.x: Vnstock().stock(symbol, source='TCBS').quote.history()
     Trả về: date, buy_vol, sell_vol, net_vol, buy_val, sell_val, net_val
     """
     try:
-        from vnstock import stock_historical_data  # type: ignore
-        from datetime import date, timedelta
+        from vnstock import Vnstock  # type: ignore
+        from datetime import date as dt, timedelta
 
-        days = PERIOD_DAYS.get(period, 22)
-        end   = date.today().strftime("%Y-%m-%d")
-        start = (date.today() - timedelta(days=days * 2)).strftime("%Y-%m-%d")
+        days  = PERIOD_DAYS.get(period, 22)
+        end   = dt.today().strftime("%Y-%m-%d")
+        start = (dt.today() - timedelta(days=days * 2)).strftime("%Y-%m-%d")
 
-        df = stock_historical_data(ticker, start, end, "1D", "stock")
+        stock = Vnstock().stock(symbol=ticker, source="TCBS")
+        df = stock.quote.history(start=start, end=end, interval="1D")
 
+        if df.empty:
+            return pd.DataFrame()
+
+        # Chuẩn hóa cột date
+        if "time" in df.columns:
+            df["date"] = pd.to_datetime(df["time"])
+        elif "date" in df.columns:
+            df["date"] = pd.to_datetime(df["date"])
+
+        # TCBS camelCase → snake_case cho tự doanh
         col_map = {
             "propBuyVolume":  "buy_vol",
             "propSellVolume": "sell_vol",
@@ -44,7 +56,6 @@ def get_tu_doan_flow(ticker: str, period: str = "1m") -> pd.DataFrame:
         if "buy_val" in df.columns and "sell_val" in df.columns:
             df["net_val"] = df["buy_val"] - df["sell_val"]
 
-        df["date"] = pd.to_datetime(df.get("time", df.index))
         cols = ["date", "buy_vol", "sell_vol", "net_vol", "buy_val", "sell_val", "net_val"]
         available = [c for c in cols if c in df.columns]
         return df[available].tail(days).reset_index(drop=True)
@@ -58,21 +69,46 @@ def get_tu_doan_flow(ticker: str, period: str = "1m") -> pd.DataFrame:
 def get_top_tu_doan_net(exchange: str = "HOSE", top_n: int = 10) -> dict[str, pd.DataFrame]:
     """
     Top mã tự doanh mua ròng / bán ròng nhiều nhất.
+    Dùng VCI price board với VN30 làm proxy.
     Trả về: {"buy": DataFrame, "sell": DataFrame}
     """
     try:
-        from vnstock import market_top_movers  # type: ignore
-        df = market_top_movers(floor=exchange, top=200)
+        from vnstock import Vnstock  # type: ignore
+        from config.constants import VN30_TICKERS
 
-        prop_col = next((c for c in df.columns if "prop" in c.lower() and "net" in c.lower()), None)
-        if prop_col is None:
-            log.warning("market_top_movers không có cột tự doanh net")
+        board = Vnstock().stock(source="VCI").trading.price_board(symbols=VN30_TICKERS)
+        if board.empty:
             return {"buy": pd.DataFrame(), "sell": pd.DataFrame()}
 
-        df = df[["ticker", prop_col]].copy()
-        df.columns = ["ticker", "net_val"]
-        df = df.dropna(subset=["net_val"])
+        # Tìm cột ticker
+        ticker_col = next(
+            (c for c in board.columns if c.lower() in ("listing_symbol", "symbol", "ticker", "code")),
+            board.columns[0]
+        )
 
+        # Tìm cột prop/tu-doan net value
+        prop_col = next(
+            (c for c in board.columns if "prop" in c.lower() and "net" in c.lower()),
+            None
+        )
+        # Fallback: tính từ buy - sell
+        if prop_col is None:
+            pbuy  = next((c for c in board.columns if "prop" in c.lower() and "buy" in c.lower()), None)
+            psell = next((c for c in board.columns if "prop" in c.lower() and "sell" in c.lower()), None)
+            if pbuy and psell:
+                board = board.copy()
+                board["_prop_net"] = pd.to_numeric(board[pbuy], errors="coerce") - pd.to_numeric(board[psell], errors="coerce")
+                prop_col = "_prop_net"
+
+        if prop_col is None:
+            log.warning("get_top_tu_doan_net: price_board không có cột tự doanh. Columns: %s", list(board.columns))
+            return {"buy": pd.DataFrame(), "sell": pd.DataFrame()}
+
+        board = board.copy() if "_prop_net" not in board.columns else board
+        board["net_val"] = pd.to_numeric(board[prop_col], errors="coerce")
+        board["ticker"] = board[ticker_col]
+
+        df = board[["ticker", "net_val"]].dropna(subset=["net_val"])
         return {
             "buy":  df.nlargest(top_n, "net_val").reset_index(drop=True),
             "sell": df.nsmallest(top_n, "net_val").reset_index(drop=True),

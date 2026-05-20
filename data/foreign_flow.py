@@ -25,37 +25,44 @@ log = get_logger(__name__)
 def get_foreign_flow(ticker: str, period: str = "1m") -> pd.DataFrame:
     """
     Dữ liệu khối ngoại theo ngày cho 1 mã.
+    Dùng vnstock 4.x: Vnstock().stock(symbol, source='TCBS').quote.history()
     Trả về DataFrame với các cột:
         date, buy_vol, sell_vol, net_vol, buy_val, sell_val, net_val
     """
     try:
-        from vnstock import stock_intraday_data  # type: ignore  # noqa: F401
-        # TCBS cung cấp foreign flow trong historical data
-        from vnstock import stock_historical_data  # type: ignore
-        from datetime import date, timedelta
+        from vnstock import Vnstock  # type: ignore
+        from datetime import date as dt, timedelta
 
         days = PERIOD_DAYS.get(period, 22)
-        end = date.today().strftime("%Y-%m-%d")
-        start = (date.today() - timedelta(days=days * 2)).strftime("%Y-%m-%d")
+        end   = dt.today().strftime("%Y-%m-%d")
+        start = (dt.today() - timedelta(days=days * 2)).strftime("%Y-%m-%d")
 
-        df = stock_historical_data(ticker, start, end, "1D", "stock")
+        stock = Vnstock().stock(symbol=ticker, source="TCBS")
+        df = stock.quote.history(start=start, end=end, interval="1D")
 
-        # Chuẩn hóa tên cột (TCBS trả về camelCase)
+        if df.empty:
+            return pd.DataFrame()
+
+        # Chuẩn hóa cột date
+        if "time" in df.columns:
+            df["date"] = pd.to_datetime(df["time"])
+        elif "date" in df.columns:
+            df["date"] = pd.to_datetime(df["date"])
+
+        # TCBS trả về camelCase → snake_case
         col_map = {
-            "foreignBuyVolume": "buy_vol",
+            "foreignBuyVolume":  "buy_vol",
             "foreignSellVolume": "sell_vol",
-            "foreignBuyValue":  "buy_val",
-            "foreignSellValue": "sell_val",
+            "foreignBuyValue":   "buy_val",
+            "foreignSellValue":  "sell_val",
         }
         df = df.rename(columns=col_map)
 
-        # Tính net nếu chưa có
         if "buy_vol" in df.columns and "sell_vol" in df.columns:
             df["net_vol"] = df["buy_vol"] - df["sell_vol"]
         if "buy_val" in df.columns and "sell_val" in df.columns:
             df["net_val"] = df["buy_val"] - df["sell_val"]
 
-        df["date"] = pd.to_datetime(df.get("time", df.index))
         cols = ["date", "buy_vol", "sell_vol", "net_vol", "buy_val", "sell_val", "net_val"]
         available = [c for c in cols if c in df.columns]
         return df[available].tail(days).reset_index(drop=True)
@@ -69,14 +76,28 @@ def get_foreign_flow(ticker: str, period: str = "1m") -> pd.DataFrame:
 def get_foreign_room(ticker: str) -> dict:
     """
     Lấy room nước ngoài còn lại của 1 mã.
+    Dùng vnstock 4.x: stock.company.overview() trả về DataFrame.
     Trả về: {ticker, max_room_pct, used_pct, remaining_pct, alert}
     """
     try:
-        from vnstock import company_overview  # type: ignore
-        info = company_overview(ticker)
-        # TCBS trả về foreignPercent (% sở hữu nước ngoài hiện tại)
-        used_pct = float(info.get("foreignPercent", 0)) * 100
-        max_pct  = float(info.get("maxForeignPercent", 49)) * 100
+        from vnstock import Vnstock  # type: ignore
+
+        stock = Vnstock().stock(symbol=ticker, source="TCBS")
+        overview = stock.company.overview()
+
+        if overview is None or (hasattr(overview, "empty") and overview.empty):
+            raise ValueError("company.overview() trả về rỗng")
+
+        # overview là DataFrame, lấy hàng đầu tiên
+        row = overview.iloc[0] if hasattr(overview, "iloc") else overview
+
+        # foreignPercent có thể là 0-1 (tỷ lệ) hoặc 0-100 (phần trăm)
+        fp = float(row.get("foreignPercent", 0) or 0)
+        used_pct = fp * 100 if fp <= 1 else fp
+
+        mfp = float(row.get("maxForeignPercent", 49) or 49)
+        max_pct = mfp * 100 if mfp <= 1 else mfp
+
         remaining = max_pct - used_pct
         return {
             "ticker":        ticker,
@@ -94,26 +115,40 @@ def get_foreign_room(ticker: str) -> dict:
 def get_top_foreign_net(exchange: str = "HOSE", top_n: int = 10) -> dict[str, pd.DataFrame]:
     """
     Top mã có khối ngoại mua ròng và bán ròng nhiều nhất hôm nay.
+    Dùng VCI price board với VN30 làm proxy.
     Trả về: {"buy": DataFrame, "sell": DataFrame}
     """
     try:
-        from vnstock import market_top_movers  # type: ignore
-        df = market_top_movers(floor=exchange, top=200)
+        from vnstock import Vnstock  # type: ignore
+        from config.constants import VN30_TICKERS
 
-        # Lọc cột foreign nếu có
-        if "foreignNetValue" not in df.columns:
-            log.warning("market_top_movers không có cột foreignNetValue")
+        board = Vnstock().stock(source="VCI").trading.price_board(symbols=VN30_TICKERS)
+        if board.empty:
             return {"buy": pd.DataFrame(), "sell": pd.DataFrame()}
 
-        df = df[["ticker", "foreignNetValue", "foreignBuyValue", "foreignSellValue"]].copy()
-        df.columns = ["ticker", "net_val", "buy_val", "sell_val"]
-        df = df.dropna(subset=["net_val"])
+        # Tìm cột ticker
+        ticker_col = next(
+            (c for c in board.columns if c.lower() in ("listing_symbol", "symbol", "ticker", "code")),
+            board.columns[0]
+        )
 
-        top_buy  = df.nlargest(top_n, "net_val")
-        top_sell = df.nsmallest(top_n, "net_val")
-        return {"buy": top_buy.reset_index(drop=True),
-                "sell": top_sell.reset_index(drop=True)}
+        # Tìm cột foreign buy/sell volume
+        fbuy_col  = next((c for c in board.columns if "foreign" in c.lower() and "buy" in c.lower() and "vol" in c.lower()), None)
+        fsell_col = next((c for c in board.columns if "foreign" in c.lower() and "sell" in c.lower() and "vol" in c.lower()), None)
 
+        if not fbuy_col or not fsell_col:
+            log.warning("get_top_foreign_net: price_board không có cột foreign flow. Columns: %s", list(board.columns))
+            return {"buy": pd.DataFrame(), "sell": pd.DataFrame()}
+
+        board = board.copy()
+        board["net_vol"] = pd.to_numeric(board[fbuy_col], errors="coerce") - pd.to_numeric(board[fsell_col], errors="coerce")
+        board["ticker"] = board[ticker_col]
+
+        df = board[["ticker", "net_vol"]].dropna(subset=["net_vol"])
+        return {
+            "buy":  df.nlargest(top_n, "net_vol").reset_index(drop=True),
+            "sell": df.nsmallest(top_n, "net_vol").reset_index(drop=True),
+        }
     except Exception as exc:
         log.warning("get_top_foreign_net lỗi: %s", exc)
         return {"buy": pd.DataFrame(), "sell": pd.DataFrame()}
