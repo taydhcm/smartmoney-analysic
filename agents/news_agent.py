@@ -42,5 +42,5 @@ def create_news_agent():
     return create_react_agent(
         llm,
         NEWS_AGENT_TOOLS,
-        state_modifier=NEWS_AGENT_SYSTEM_PROMPT,
+        prompt=NEWS_AGENT_SYSTEM_PROMPT,
     )
