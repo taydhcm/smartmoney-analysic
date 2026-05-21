@@ -117,9 +117,14 @@ def train_model(dataset: pd.DataFrame, save: bool = True) -> dict:
     dataset = dataset.sort_values(["date", "ticker"]).reset_index(drop=True)
 
     # Chỉ giữ rows có label + features đầy đủ
-    clean = dataset[FEATURE_COLS + ["label"]].dropna()
-    X_raw = clean[FEATURE_COLS].values.astype(np.float32)
-    y     = clean["label"].values.astype(int)
+    # Đồng thời loại rows có inf (pct_change từ 0, division edge cases)
+    feat_data = dataset[FEATURE_COLS + ["label"]].copy()
+    feat_data = feat_data.replace([np.inf, -np.inf], np.nan).dropna()
+    X_raw = feat_data[FEATURE_COLS].values.astype(np.float64)
+    # Clip outliers trước khi ép sang float32 để tránh overflow
+    X_raw = np.clip(X_raw, -1e6, 1e6)
+    X_raw = X_raw.astype(np.float32)
+    y     = feat_data["label"].values.astype(int)
 
     if len(X_raw) < 50:
         raise ValueError(f"Không đủ dữ liệu để train: chỉ có {len(X_raw)} rows")

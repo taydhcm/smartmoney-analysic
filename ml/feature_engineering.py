@@ -173,18 +173,24 @@ def compute_stock_features(
     out["rsi_14"] = _rsi(close, 14)
 
     obv_series   = _obv(df)
-    out["obv_trend"] = obv_series.pct_change(5).fillna(0.0)
+    # pct_change từ 0 → inf khi OBV bắt đầu từ 0; replace và clip
+    out["obv_trend"] = (
+        obv_series.pct_change(5)
+        .replace([np.inf, -np.inf], 0.0)
+        .fillna(0.0)
+        .clip(-5.0, 5.0)
+    )
 
     sma5  = close.rolling(5,  min_periods=3).mean()
     sma20 = close.rolling(20, min_periods=10).mean()
-    out["price_vs_5sma"]  = close / (sma5  + 1e-9) - 1
-    out["price_vs_20sma"] = close / (sma20 + 1e-9) - 1
+    out["price_vs_5sma"]  = (close / (sma5  + 1e-9) - 1).clip(-1.0, 1.0)
+    out["price_vs_20sma"] = (close / (sma20 + 1e-9) - 1).clip(-1.0, 1.0)
 
     # ── Volume ─────────────────────────────────────────────────────────────────
     vol_ma5  = volume.rolling(5,  min_periods=3).mean()
     vol_ma20 = volume.rolling(20, min_periods=10).mean()
-    out["volume_ratio_5d"]  = volume / (vol_ma5  + 1e-9)
-    out["volume_ratio_20d"] = volume / (vol_ma20 + 1e-9)
+    out["volume_ratio_5d"]  = (volume / (vol_ma5  + 1e-9)).clip(0.0, 10.0)
+    out["volume_ratio_20d"] = (volume / (vol_ma20 + 1e-9)).clip(0.0, 10.0)
 
     # ── Candle structure ───────────────────────────────────────────────────────
     candle_range = (df["high"] - df["low"]).replace(0, np.nan)
@@ -218,7 +224,8 @@ def compute_stock_features(
         rel   = pd.Series((close.values / (vn30_aligned + 1e-9)) - 1, index=df.index)
         mu    = rel.rolling(10, min_periods=5).mean()
         sigma = rel.rolling(10, min_periods=5).std()
-        out["basis_zscore"]       = ((rel - mu) / (sigma + 1e-9)).clip(-4, 4)
+        raw_zscore = (rel - mu) / (sigma + 1e-9)
+        out["basis_zscore"]       = raw_zscore.replace([np.inf, -np.inf], 0.0).clip(-4.0, 4.0)
         out["basis_extreme_flag"] = (out["basis_zscore"].abs() > 2.0).astype(float)
     else:
         out["vn30_ret_1d"]       = 0.0
@@ -239,9 +246,13 @@ def compute_stock_features(
     required = ["return_1d", "rsi_14", "atr_norm"]
     out = out.dropna(subset=required).reset_index(drop=True)
 
-    # Fill remaining NaN features with 0 (conservative)
+    # Fill remaining NaN + replace inf (safety net)
     for col in FEATURE_COLS:
         if col in out.columns:
-            out[col] = out[col].fillna(0.0)
+            out[col] = (
+                out[col]
+                .replace([np.inf, -np.inf], 0.0)
+                .fillna(0.0)
+            )
 
     return out
