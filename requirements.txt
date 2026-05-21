@@ -30,6 +30,11 @@ lxml>=5.2                  # fast XML/HTML parser
 # ── Vietnamese NLP / Sentiment ─────────────────────────────────────────────────
 underthesea>=6.8           # Vietnamese NLP (tokenizer, sentiment)
 
+# ── Machine Learning (Alpha Signal System) ─────────────────────────────────────
+scikit-learn>=1.4          # preprocessing, model selection, metrics
+lightgbm>=4.3              # primary GBM model
+xgboost>=2.0               # fallback GBM model
+
 # ── Utilities ──────────────────────────────────────────────────────────────────
 tenacity>=8.3              # retry logic for HTTP/API calls
 python-dateutil>=2.9

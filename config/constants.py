@@ -84,6 +84,8 @@ PERIOD_LABELS: dict[str, str] = {
     "2w":  "2 tuần",
     "1m":  "1 tháng",
     "3m":  "3 tháng",
+    "6m":  "6 tháng",
+    "12m": "12 tháng",
 }
 
 PERIOD_DAYS: dict[str, int] = {
@@ -91,4 +93,6 @@ PERIOD_DAYS: dict[str, int] = {
     "2w": 10,
     "1m": 22,
     "3m": 66,
+    "6m": 130,
+    "12m": 260,
 }
