@@ -24,8 +24,8 @@ def _batch_board(tickers: list[str]) -> pd.DataFrame:
     foreign_sell_volume, close_price, percent_change, volume_accumulated, ...
     """
     try:
-        from data.foreign_flow import _get_kbs_board
-        return _get_kbs_board(tickers)
+        from vnstock.api.trading import Trading  # type: ignore
+        return Trading(source="KBS").price_board(symbols_list=tickers)
     except Exception as exc:
         log.warning("_batch_board lỗi: %s", exc)
         return pd.DataFrame()
@@ -87,6 +87,8 @@ def get_sector_flow_summary(period: str = "1m") -> pd.DataFrame:
 
     # 2. MỘT lần gọi API duy nhất
     board = _batch_board(all_tickers)
+    log.info("get_sector_flow_summary: KBS board shape=%s, cols=%s",
+             board.shape, list(board.columns)[:8] if not board.empty else "EMPTY")
     foreign_map, activity_map = _build_lookup(board)
 
     # 3. Tổng hợp theo ngành
