@@ -149,7 +149,7 @@ def make_worker_node(agent_name: str, agent):
         try:
             result = agent.invoke(state)
             output_content = ""
-            if result.get("messages"):
+            if result is not None and result.get("messages"):
                 last = result["messages"][-1]
                 output_content = last.content if hasattr(last, "content") else str(last)
         except Exception as exc:

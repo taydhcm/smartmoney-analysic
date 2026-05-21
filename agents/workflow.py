@@ -93,6 +93,8 @@ def run_analysis(
     config = {"configurable": {"thread_id": thread_id}}
 
     result = graph.invoke(state, config=config)
+    if result is None:
+        return "Không nhận được kết quả từ agents."
     return result.get("final_report") or result["messages"][-1].content
 
 
@@ -118,7 +120,10 @@ def stream_analysis(
         for node_name, node_update in event.items():
             if node_name == "__end__":
                 continue
-            messages = node_update.get("messages", [])
+            # node_update có thể là None khi supervisor route không có update
+            if not node_update:
+                continue
+            messages = node_update.get("messages", []) or []
             for msg in messages:
                 content = msg.content if hasattr(msg, "content") else str(msg)
                 if content:
