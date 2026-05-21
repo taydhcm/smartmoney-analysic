@@ -61,12 +61,41 @@ with st.sidebar:
     st.caption("**Model:** LightGBM → XGBoost → RF")
     st.caption("**Label:** return T+2 ≥ +5%")
 
+    # ── Rate limit mode badge ──────────────────────────────────────────
+    st.divider()
+    from utils.rate_limiter import vnstock_limiter
+    if vnstock_limiter.is_throttled:
+        st.warning(
+            "⏱ **Free tier: 17 req/phút**\n\n"
+            "API sẽ tự sleep giữa các request.\n"
+            "Có SSI API key? Thêm vào `.env`:\n"
+            "`SSI_API_KEY=...`\n`SSI_SECRET_KEY=...`"
+        )
+    else:
+        st.success("⚡ **SSI API** — Không giới hạn request")
+
 # ── Header ────────────────────────────────────────────────────────────────────
+from utils.rate_limiter import vnstock_limiter as _limiter
+_throttled = _limiter.is_throttled
+_n_tickers = len(VN30_TICKERS) + 1   # +1 cho VN30 index
+_eta_train  = _limiter.eta_seconds(_n_tickers * 5) if _throttled else 0  # 6m = ~5 batch calls
+_eta_predict = _limiter.eta_seconds(_n_tickers) if _throttled else 0
+
 st.title("🎯 Alpha Signal System")
 st.caption(
     "Dự đoán xác suất đạt **>5% return trong T+2** dựa trên ML (Gradient Boosting). "
     f"Cập nhật: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
 )
+
+# Rate limit banner toàn trang
+if _throttled:
+    st.info(
+        f"⏱ **Chế độ Free Tier** — VNStock giới hạn 20 req/phút. "
+        f"Hệ thống tự động sleep giữa các API call. "
+        f"ETA dự đoán: **~{int(_eta_predict//60)}ph{int(_eta_predict%60):02d}s** (lần đầu, sẽ nhanh sau khi cache). "
+        "Muốn nhanh hơn? Thêm `SSI_API_KEY` vào `.env`.",
+        icon="⚠️",
+    )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 1 — Model Status
@@ -112,13 +141,23 @@ with col_train:
 if do_train:
     st.divider()
     st.subheader("🔄 Đang train model...")
-
+    if _throttled:
+        _train_eta_min = int(_limiter.eta_seconds(_n_tickers * 5) // 60)
+        _train_eta_sec = int(_limiter.eta_seconds(_n_tickers * 5) % 60)
+        st.warning(
+            f"⏱ Free tier: ETA train khoảng **{_train_eta_min}ph {_train_eta_sec:02d}s** "
+            "(do thờ́t API 17 req/phút). Lần tiếp theo sẽ nhanh hơn nhờ cache."
+        )
     prog_bar  = st.progress(0.0)
     prog_text = st.empty()
 
     def _update_progress(pct: float, msg: str) -> None:
         prog_bar.progress(min(pct, 1.0))
-        prog_text.caption(msg)
+        if _throttled:
+            used, cap = _limiter.current_usage()
+            prog_text.caption(f"{msg}  |  ⏱ API: {used}/{cap} req/phút")
+        else:
+            prog_text.caption(msg)
 
     with st.spinner("Đang build dataset..."):
         try:
@@ -199,6 +238,15 @@ if not model_exists():
     st.info("Chưa có model. Train trước để sử dụng prediction.")
     st.stop()
 
+# ETA notice ngay trước khi predict
+if _throttled and do_predict:
+    _peta = int(_limiter.eta_seconds(_n_tickers))
+    st.info(
+        f"⏳ Ước tính ~**{_peta//60}ph {_peta%60:02d}s** để dự đoán {_n_tickers-1} tickers "
+        "(hệ thống tự ngủ giữa mỗi API call). "
+        "Các lần sau sẽ nhanh hơn do cache 15 phút."
+    )
+
 # ── Prediction ─────────────────────────────────────────────────────────────────
 if do_predict or "alpha_picks" in st.session_state:
     if do_predict:
@@ -207,7 +255,11 @@ if do_predict or "alpha_picks" in st.session_state:
 
         def _pred_update(pct: float, msg: str) -> None:
             _pred_prog.progress(min(pct, 1.0))
-            _pred_text.caption(msg)
+            if _throttled:
+                used, cap = _limiter.current_usage()
+                _pred_text.caption(f"{msg}  |  ⏱ API quota: {used}/{cap} req/phút")
+            else:
+                _pred_text.caption(msg)
 
         with st.spinner("Đang tính P_alpha cho VN30..."):
             try:

@@ -39,6 +39,11 @@ def _get_secret(key: str, default: str = "") -> str:
 GROQ_API_KEY:    str | None = _get_secret("GROQ_API_KEY") or None
 OPENAI_API_KEY:  str | None = _get_secret("OPENAI_API_KEY") or None
 
+# ── SSI Fast Connect API (khi có → VNStock unlimited, không bị rate limit) ─────
+SSI_API_KEY:     str | None = _get_secret("SSI_API_KEY") or None
+SSI_SECRET_KEY:  str | None = _get_secret("SSI_SECRET_KEY") or None
+HAS_SSI_API:     bool       = bool(SSI_API_KEY and SSI_SECRET_KEY)
+
 LLM_MODEL_GROQ:   str = _get_secret("LLM_MODEL_GROQ",   "llama-3.3-70b-versatile")
 LLM_MODEL_OPENAI: str = _get_secret("LLM_MODEL_OPENAI", "gpt-4o-mini")
 LLM_TEMPERATURE:  float = float(_get_secret("LLM_TEMPERATURE", "0.3"))

@@ -39,7 +39,11 @@ def get_ohlcv(ticker: str, period: str = "1m") -> pd.DataFrame:
     """
     OHLCV cho 1 mã. Trả về DataFrame với cột:
     [date, open, high, low, close, volume]
+    Rate limiter chỉ được gọi khi cache miss (tức là sẽ gọi VCI API thực sự).
     """
+    # Thờ́t nếu đang dùng free tier (đã check cache miss vì ta trong body @ttl_cache)
+    from utils.rate_limiter import vnstock_limiter  # lazy import để tránh circular
+    vnstock_limiter.acquire()
     try:
         from vnstock.api.quote import Quote  # type: ignore
         start, end = _date_range(period)
@@ -64,6 +68,8 @@ def get_index_data(index_code: str = "VNINDEX", period: str = "1m") -> pd.DataFr
     Dữ liệu chỉ số (VNINDEX, HNX30, UPCOM…).
     Dùng VCI source với vnstock 4.x Quote API.
     """
+    from utils.rate_limiter import vnstock_limiter
+    vnstock_limiter.acquire()   # chỉ gọi khi cache miss
     from vnstock.api.quote import Quote  # type: ignore
     start, end = _date_range(period)
     for source in ("VCI", "KBS"):
