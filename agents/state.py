@@ -5,6 +5,7 @@ Thiết kế cho thị trường chứng khoán Việt Nam.
 """
 
 from __future__ import annotations
+import operator
 from typing import Annotated, Any
 from typing_extensions import TypedDict
 
@@ -32,7 +33,8 @@ class AgentState(TypedDict):
 
     # ── Supervisor routing ────────────────────────────────────────────────────
     next:          str | None        # Agent tiếp theo cần gọi (supervisor dùng)
-    completed:     list[str]         # Agents đã chạy xong
+    # Annotated với operator.add cho phép 2 agents ghi đồng thời (parallel exec)
+    completed:     Annotated[list[str], operator.add]
 
     # ── Final output ──────────────────────────────────────────────────────────
     final_report:  str | None        # Markdown report cuối cùng

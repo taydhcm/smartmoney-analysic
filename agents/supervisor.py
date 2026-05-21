@@ -61,7 +61,7 @@ def supervisor_node(state: AgentState) -> Command[WorkerName]:
 
     # Tất cả workers đã chạy → tổng hợp
     all_workers = {"data_agent", "news_agent", "sector_agent"}
-    if all_workers.issubset(set(completed)):
+    if all_workers.issubset(set(completed)):  # set() đề phòng duplicate từ parallel runs
         log.info("Supervisor: tất cả agents xong → tổng hợp report")
         return _finalize(state, llm, messages)
 
@@ -157,12 +157,11 @@ def make_worker_node(agent_name: str, agent):
             output_content = f"[{agent_name}] Lỗi: {exc}"
 
         completed = list(state.get("completed") or [])
-        if agent_name not in completed:
-            completed.append(agent_name)
 
         from langchain_core.messages import AIMessage as AI
         update: dict = {
-            "completed": completed,
+            # Chỉ gửi delta [agent_name] — operator.add sẽ concat vào list hiện có
+            "completed": [agent_name],
             "messages": [AI(content=output_content, name=agent_name)],
         }
 
