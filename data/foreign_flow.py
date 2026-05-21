@@ -1,96 +1,80 @@
 """
 data/foreign_flow.py
 Phân tích dòng tiền khối ngoại (foreign investor flows).
-Dữ liệu từ KBS price_board (thời gian thực tích lũy trong ngày).
 
-Ghi chú: vnstock 4.x không còn endpoint lịch sử khối ngoại (TCBS đã bị xóa).
-KBS price_board cung cấp dữ liệu HIỆN TẠI của ngày giao dịch (tích lũy từ đầu phiên).
-Các cột:
-    - foreign_buy_volume   : KL NN mua (shares)
-    - foreign_sell_volume  : KL NN bán (shares)
-    - foreign_room         : Room ngoại còn lại (raw, tỷ đồng hoặc %)
-    - close_price          : Giá khớp hiện tại (VND)
+Kiến trúc Provider:
+  - VNDirect FINFO API  (ưu tiên 1): lịch sử N ngày, miễn phí, không cần key
+  - KBS Snapshot        (fallback 2): hôm nay + tích lũy lên đĩa tự động
+  - SSI Fast Connect    (tương lai) : khi có credentials từ iBoard SSI
+
+Để chuyển provider: set biến môi trường FLOW_PROVIDER=ssi/kbs/vndirect/auto
+Mặc định: "auto" (VNDirect → KBS fallback)
 """
 
 from __future__ import annotations
 
+import os
 import pandas as pd
-from datetime import date
 
-from config.constants import PERIOD_DAYS, FOREIGN_ROOM_ALERT_PCT
+from config.constants import PERIOD_DAYS, FOREIGN_ROOM_ALERT_PCT, VN30_TICKERS
 from utils.cache import ttl_cache
 from utils.logger import get_logger
+from data.providers import get_provider
 
 log = get_logger(__name__)
 
+# Lấy provider theo cấu hình (mặc định "auto")
+_PROVIDER_NAME = os.getenv("FLOW_PROVIDER", "auto")
+_provider = get_provider(_PROVIDER_NAME)
+log.info("foreign_flow: dùng provider [%s]", _provider.name)
 
-def _get_kbs_board(symbols: list[str]) -> pd.DataFrame:
-    """Lấy KBS price_board cho danh sách mã. Trả về DataFrame phẳng."""
-    try:
-        from vnstock.api.trading import Trading  # type: ignore
-        board = Trading(source="KBS").price_board(symbols_list=symbols)
-        return board
-    except Exception as exc:
-        log.warning("_get_kbs_board(%s) lỗi: %s", symbols, exc)
-        return pd.DataFrame()
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Public API
+# ─────────────────────────────────────────────────────────────────────────────
 
 @ttl_cache()
-def get_foreign_flow(ticker: str, period: str = "1m") -> pd.DataFrame:
+def get_foreign_flow(ticker: str, period: str = "1w") -> pd.DataFrame:
     """
-    Dữ liệu khối ngoại cho 1 mã (snapshot hiện tại của ngày giao dịch).
-    Vì vnstock 4.x không có endpoint lịch sử ngoại, hàm này trả về
-    1 dòng dữ liệu hôm nay với: date, buy_vol, sell_vol, net_vol, net_val.
+    Lịch sử dòng tiền khối ngoại cho 1 mã.
 
-    Dùng cho: sector_data (tính tổng net theo ngành), foreign_room.
+    Args:
+        ticker: Mã chứng khoán (VD: "VIC")
+        period: "1w" | "2w" | "1m" | "3m" (dùng PERIOD_DAYS để convert)
+
+    Returns:
+        DataFrame: date, buy_vol, sell_vol, net_vol, net_val
+        Sắp xếp tăng dần theo date.
     """
+    days = PERIOD_DAYS.get(period, 7)
     try:
-        board = _get_kbs_board([ticker])
-        if board.empty:
-            return pd.DataFrame()
-
-        row = board.iloc[0]
-        buy_vol  = float(pd.to_numeric(row.get("foreign_buy_volume",  0), errors="coerce") or 0)
-        sell_vol = float(pd.to_numeric(row.get("foreign_sell_volume", 0), errors="coerce") or 0)
-        net_vol  = buy_vol - sell_vol
-
-        # Tính giá trị (VND) từ khối lượng × giá khớp
-        close_px = float(pd.to_numeric(row.get("close_price", row.get("average_price", 0)), errors="coerce") or 0)
-        net_val  = net_vol * close_px  # đơn vị VND
-
-        df = pd.DataFrame([{
-            "date":     date.today(),
-            "buy_vol":  int(buy_vol),
-            "sell_vol": int(sell_vol),
-            "net_vol":  int(net_vol),
-            "net_val":  net_val,
-        }])
-        df["date"] = pd.to_datetime(df["date"])
+        df = _provider.get_foreign_flow(ticker, days=days)
         return df
-
     except Exception as exc:
-        log.warning("get_foreign_flow(%s) lỗi: %s", ticker, exc)
+        log.warning("get_foreign_flow(%s, %s) lỗi: %s", ticker, period, exc)
         return pd.DataFrame()
 
 
 @ttl_cache()
 def get_foreign_room(ticker: str) -> dict:
     """
-    Lấy room nước ngoài còn lại của 1 mã (từ KBS price_board).
-    Trả về: {ticker, max_room_pct, used_pct, remaining_pct, alert}
+    Lấy room nước ngoài còn lại của 1 mã.
+    Luôn dùng KBS (real-time, không cần lịch sử).
+
+    Returns:
+        {ticker, max_room_pct, used_pct, remaining_pct, alert}
     """
     try:
-        board = _get_kbs_board([ticker])
+        from vnstock.api.trading import Trading  # type: ignore
+        board = Trading(source="KBS").price_board(symbols_list=[ticker])
         if board.empty:
             raise ValueError("price_board trống")
 
         row = board.iloc[0]
-        # KBS: foreign_room là room còn lại (dạng raw, có thể là tỷ đồng hoặc số cổ phần)
-        # foreign_ownership_ratio là tỷ lệ sở hữu hiện tại (0–100)
         fp = float(pd.to_numeric(row.get("foreign_ownership_ratio", 0), errors="coerce") or 0)
         used_pct = fp if fp > 1 else fp * 100
 
-        max_pct = 49.0  # Giới hạn mặc định HOSE
+        max_pct   = 49.0
         remaining = max_pct - used_pct
         return {
             "ticker":        ticker,
@@ -107,54 +91,20 @@ def get_foreign_room(ticker: str) -> dict:
 @ttl_cache()
 def get_top_foreign_net(exchange: str = "HOSE", top_n: int = 10) -> dict[str, pd.DataFrame]:
     """
-    Top mã có khối ngoại mua ròng và bán ròng nhiều nhất hôm nay.
-    Dùng KBS price_board với VN30 làm proxy (dữ liệu tích lũy trong phiên).
-    Trả về: {"buy": DataFrame, "sell": DataFrame}
+    Top mã có khối ngoại mua ròng / bán ròng nhiều nhất hôm nay.
+
+    Returns:
+        {"buy": DataFrame, "sell": DataFrame}
+        Mỗi DataFrame: ticker, net_vol, net_val
     """
     try:
-        from config.constants import VN30_TICKERS
-
-        board = _get_kbs_board(VN30_TICKERS)
-        if board.empty:
-            return {"buy": pd.DataFrame(), "sell": pd.DataFrame()}
-
-        board = board.copy()
-
-        # KBS cột phẳng: symbol, foreign_buy_volume, foreign_sell_volume, close_price
-        if "foreign_buy_volume" not in board.columns or "foreign_sell_volume" not in board.columns:
-            log.warning("get_top_foreign_net: không có cột foreign_buy/sell_volume. Columns: %s", list(board.columns))
-            return {"buy": pd.DataFrame(), "sell": pd.DataFrame()}
-
-        board["buy_vol"]  = pd.to_numeric(board["foreign_buy_volume"],  errors="coerce").fillna(0)
-        board["sell_vol"] = pd.to_numeric(board["foreign_sell_volume"], errors="coerce").fillna(0)
-        board["net_vol"]  = board["buy_vol"] - board["sell_vol"]
-
-        # Tính giá trị VND (dùng để hiển thị tỷ đồng)
-        close_col = next((c for c in board.columns if c in ("close_price", "average_price")), None)
-        if close_col:
-            board["price"] = pd.to_numeric(board[close_col], errors="coerce").fillna(0)
-        else:
-            board["price"] = 0
-        board["net_val"] = board["net_vol"] * board["price"]
-
-        # Lấy cột ticker
-        ticker_col = next(
-            (c for c in board.columns if c.lower() in ("symbol", "ticker", "code")),
-            board.columns[0]
-        )
-        board["ticker"] = board[ticker_col]
-
-        df = board[["ticker", "net_vol", "net_val"]].dropna(subset=["net_val"])
-        return {
-            "buy":  df.nlargest(top_n,  "net_val").reset_index(drop=True),
-            "sell": df.nsmallest(top_n, "net_val").reset_index(drop=True),
-        }
+        return _provider.get_top_foreign_net(VN30_TICKERS, top_n=top_n)
     except Exception as exc:
         log.warning("get_top_foreign_net lỗi: %s", exc)
-        return {"buy": pd.DataFrame(), "sell": pd.DataFrame()}
+        empty = pd.DataFrame(columns=["ticker", "net_vol", "net_val"])
+        return {"buy": empty, "sell": empty}
 
-
-def summarize_foreign_flow(ticker: str, period: str = "1m") -> str:
+def summarize_foreign_flow(ticker: str, period: str = "1w") -> str:
     """Tóm tắt dòng tiền ngoại cho 1 mã (dùng bởi LangGraph tools)."""
     df = get_foreign_flow(ticker, period)
     room = get_foreign_room(ticker)
@@ -171,6 +121,6 @@ def summarize_foreign_flow(ticker: str, period: str = "1m") -> str:
     )
 
     return (
-        f"[{ticker}] Khối ngoại hôm nay: {trend} | "
-        f"Net vol: {net_total/1e9:.1f} tỷ | {room_str}"
+        f"[{ticker}] Khối ngoại {period}: {trend} | "
+        f"Net val: {net_total/1e9:.1f} tỷ ({len(df)} ngày) | {room_str}"
     )
