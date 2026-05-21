@@ -75,7 +75,10 @@ class CompositeProvider(FlowProvider):
     def get_top_foreign_net(
         self, tickers: list[str], top_n: int = 10
     ) -> dict[str, pd.DataFrame]:
-        for provider in self._providers:
+        # get_top_foreign_net là dữ liệu HÔM NAY → dùng KBS (1 batch call) trước tiên.
+        # VNDirect loop N request/ticker → quá chậm cho mục đích này.
+        kbs_first = sorted(self._providers, key=lambda p: 0 if p.name == "kbs" else 1)
+        for provider in kbs_first:
             try:
                 result = provider.get_top_foreign_net(tickers, top_n)
                 if result and not result["buy"].empty:

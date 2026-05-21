@@ -41,8 +41,8 @@ from .base import FlowProvider
 log = get_logger(__name__)
 
 _BASE = "https://finfo-api.vndirect.com.vn"
-_TIMEOUT  = 12      # giây, mỗi lần thử
-_RETRIES  = 2       # số lần retry khi timeout
+_TIMEOUT  = 4       # giây — fail nhanh để composite fallback sang KBS
+_RETRIES  = 1       # 1 lần thử, không retry (tổng max 4s rồi fallback)
 _FIELDS_FF = (
     "code,date"
     ",foreignBuyVolume,foreignSellVolume,foreignNetVolume"
@@ -183,29 +183,7 @@ class VNDirectProvider(FlowProvider):
         self, tickers: list[str], top_n: int = 10
     ) -> dict[str, pd.DataFrame]:
         """
-        Lấy top mua/bán ròng hôm nay từ VNDirect.
-        Batch: 1 request per ticker — dùng hôm nay only để tránh quá nhiều request.
+        VNDirect không dùng cho get_top_foreign_net vì nó sẽ loop N request.
+        Trả về empty → composite sẽ fallback sang KBSProvider (1 batch call).
         """
-        today = date.today()
-        rows = []
-        for tkr in tickers:
-            url = _build_url(tkr, today, today, _FIELDS_FF)
-            resp = _http_get(url)
-            if not resp or not resp.get("data"):
-                continue
-            item = resp["data"][-1]  # lấy record mới nhất
-            try:
-                net_vol = int(float(item.get("foreignNetVolume", 0) or 0))
-                net_val = float(item.get("foreignNetValue", 0) or 0)
-                rows.append({"ticker": tkr, "net_vol": net_vol, "net_val": net_val})
-            except Exception:
-                pass
-
-        if not rows:
-            return self._empty_top()
-
-        df = pd.DataFrame(rows)
-        return {
-            "buy":  df.nlargest(top_n,  "net_val").reset_index(drop=True),
-            "sell": df.nsmallest(top_n, "net_val").reset_index(drop=True),
-        }
+        return self._empty_top()
