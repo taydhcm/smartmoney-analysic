@@ -1,6 +1,6 @@
 # SmartMoney Analysis — Progress & Architecture
 
-> Cập nhật lần cuối: 2026-05-20  
+> Cập nhật lần cuối: 2026-05-21  
 > Deployed: https://tayd-smartmoney.streamlit.app  
 > Repo: https://github.com/taydhcm/smartmoney-analysic (branch `main`)
 
@@ -33,11 +33,18 @@ smartmoney-analysic/
 │   └── settings.py               # Env vars, secrets
 ├── data/                         # Data layer (tất cả đã rewrite cho vnstock 4.x)
 │   ├── market_data.py            # OHLCV, index, breadth, ticker listing
-│   ├── foreign_flow.py           # Khối ngoại buy/sell/net (KBS snapshot)
-│   ├── proprietary_trading.py    # Tự doanh — hiện tại trả empty (không có nguồn)
+│   ├── foreign_flow.py           # Khối ngoại — dùng provider layer (VNDirect → KBS)
+│   ├── proprietary_trading.py    # Tự doanh — dùng provider layer (VNDirect → empty)
 │   ├── sector_data.py            # Sector rotation, heatmap
 │   ├── volume_analysis.py        # Volume indicators
-│   └── block_deals.py            # Giao dịch thoả thuận
+│   ├── block_deals.py            # Giao dịch thoả thuận
+│   └── providers/                # Provider pattern cho flow data
+│       ├── __init__.py           # get_provider(name) factory
+│       ├── base.py               # FlowProvider ABC (interface chuẩn)
+│       ├── vndirect_provider.py  # VNDirect FINFO API (lịch sử N ngày, miễn phí)
+│       ├── kbs_provider.py       # KBS snapshot + tích lũy lên đĩa tự động
+│       ├── composite_provider.py # Chain providers: thử lần lượt, fallback tự động
+│       └── ssi_provider.py       # SSI Fast Connect stub (sẵn sàng khi có credentials)
 ├── news/
 │   ├── cafef_scraper.py          # CafeF RSS → filter ticker + 7-day date filter
 │   ├── sentiment.py              # aggregate_sentiment() dùng underthesea
@@ -88,11 +95,27 @@ bid/ask prices
 | OHLCV lịch sử | ✅ | VCI | Dùng `Quote(source='VCI').history()` |
 | Index lịch sử | ✅ | VCI → KBS fallback | |
 | Market breadth | ✅ | KBS price_board (VN30) | up/down/ceil/floor count |
-| Foreign flow real-time | ✅ | KBS price_board | Chỉ có snapshot hôm nay, KHÔNG có lịch sử |
-| Foreign flow lịch sử | ❌ | Không có | TCBS gone, KBS chỉ có hôm nay |
-| Tự doanh (prop trading) | ❌ | Không có | `proprietary_trading.py` trả empty DataFrame |
+| Foreign flow real-time | ✅ | KBS price_board | Snapshot hôm nay (tích lũy phiên) |
+| Foreign flow lịch sử | ⚠️ | VNDirect → KBS | VNDirect nếu available; KBS tích lũy đĩa |
+| Tự doanh (prop trading) | ⚠️ | VNDirect (thử) | Cần SSI FC để chắc chắn có data |
 | Danh sách ticker | ✅ | KBS Listing | `symbols_by_exchange()` |
 | Tin tức | ✅ | CafeF RSS | 5 feeds, filter ticker + 7 ngày |
+
+### Provider Priority Chain (auto mode)
+```
+get_foreign_flow(ticker, period)
+  └─ CompositeProvider
+       ├─ 1. VNDirectProvider  → GET finfo-api.vndirect.com.vn/v4/stock_prices (lịch sử thực)
+       └─ 2. KBSProvider       → price_board snapshot hôm nay + đọc .cache/ff_snapshots/
+```
+
+Chuyển sang SSI sau khi có credentials:
+```bash
+# .env hoặc Streamlit secrets
+FLOW_PROVIDER=ssi
+SSI_CONSUMER_ID=your_id
+SSI_CONSUMER_SECRET=your_secret
+```
 
 ---
 
@@ -100,10 +123,11 @@ bid/ask prices
 
 | Commit | Nội dung |
 |---|---|
-| `763eca4` | **[LATEST]** Stock detail: foreign flow + news 1 tuần |
+| `3b754e0` | **[LATEST]** Provider architecture: VNDirect → KBS fallback + SSI stub |
+| `916d3b3` | docs: PROGRESS.md |
+| `763eca4` | Stock detail: foreign flow + news 1 tuần |
 | `bf2e40b` | Sector analysis: batch API 1 lần thay vì ~50 lần (fix timeout) |
 | `a8b0ae9` | Migrate toàn bộ data layer từ TCBS → VCI/KBS (vnstock 4.x) |
-| `2187848` | Security: xoá secret khỏi .env.example |
 | `c234cf9` | Initial commit |
 
 ---
@@ -111,7 +135,7 @@ bid/ask prices
 ## 5. Các vấn đề đã giải quyết
 
 ### ✅ TCBS API removed (vnstock 4.0.4)
-- **Vấn đề**: `from vnstock import Vnstock` + TCBS → HTTP 404
+- **Vấn đề**: `from vnstock import Vnstock` + TCBS → HTTP 404. TCBS REST API cũng dead hoàn toàn.
 - **Giải pháp**: Dùng `Quote(source='VCI')`, `Trading(source='KBS')`, `Listing(source='KBS')`
 - **Files**: `data/market_data.py`, `data/foreign_flow.py`, `data/proprietary_trading.py`
 
@@ -131,6 +155,15 @@ bid/ask prices
 - **Giải pháp**: `search_cafef_news(ticker, limit=100, days=7)` — parse RSS `published` date, filter 7 ngày, hiện tất cả
 - **File**: `news/cafef_scraper.py`, `pages/04_stock_detail.py`
 
+### ✅ Foreign flow & tự doanh — Provider Architecture
+- **Vấn đề**: KBS chỉ có snapshot hôm nay, không có lịch sử. Không có nguồn tự doanh.
+- **Giải pháp**: `data/providers/` — provider pattern với chain VNDirect → KBS + SSI stub
+  - `VNDirectProvider`: VNDirect FINFO API, lịch sử N ngày, miễn phí, không cần key
+  - `KBSProvider`: real-time snapshot + tự động tích lũy lên `.cache/ff_snapshots/` theo ngày
+  - `CompositeProvider`: thử VNDirect trước, fallback KBS nếu timeout/fail
+  - `SSIProvider`: stub sẵn sàng, chỉ cần thêm credentials vào `secrets.toml`
+- **Chuyển provider**: set `FLOW_PROVIDER=ssi` trong env, không cần sửa code
+
 ---
 
 ## 6. Trạng thái từng trang
@@ -138,7 +171,7 @@ bid/ask prices
 | Trang | Status | Ghi chú |
 |---|---|---|
 | 01 Market Overview | ✅ Hoạt động | VNINDEX chart, sector heatmap, market breadth từ KBS |
-| 02 Foreign Flow | ✅ Hoạt động | Top mua/bán KBS, chỉ có snapshot hôm nay |
+| 02 Foreign Flow | ✅ Hoạt động | Top mua/bán qua provider (VNDirect → KBS) |
 | 03 Sector Analysis | ✅ Hoạt động | Fixed timeout, batch API |
 | 04 Stock Detail | ✅ Hoạt động | OHLCV + foreign flow 7 ngày + news 7 ngày |
 | 05 AI Analysis | ⚠️ Chưa test đầy đủ | LangGraph + Groq |
@@ -148,59 +181,63 @@ bid/ask prices
 ## 7. Hướng phát triển tiếp theo
 
 ### Cần làm ngay
-- [ ] **SSI Fast Connect API** — tích hợp để lấy foreign flow lịch sử thực sự
-  - Lấy `consumerID` + `consumerSecret` từ: https://iboard.ssi.com.vn/support/api-service/management
-  - `pip install ssi-fc-data`
-  - Viết lại `data/foreign_flow.py` để dùng `client.daily_stock_price()` từ SSI FC
-  - Lưu credentials vào `.streamlit/secrets.toml` (Streamlit Cloud)
+- [ ] **Kích hoạt SSI Fast Connect** — provider stub đã sẵn sàng, chỉ cần credentials
+  - Đăng ký nộp giấy tờ tại quầy SSI (mất ~2 tuần)
+  - Sau khi có: thêm `SSI_CONSUMER_ID` + `SSI_CONSUMER_SECRET` vào `secrets.toml`
+  - Set `FLOW_PROVIDER=ssi` trong Streamlit Cloud secrets
+  - Implement `get_foreign_flow()` và `get_prop_trading()` trong `data/providers/ssi_provider.py`
+- [ ] **Implement SSI `get_foreign_flow()`** trong `ssi_provider.py` (TODO đã có trong file)
+- [ ] **Implement SSI `get_prop_trading()`** trong `ssi_provider.py` — lấy được tự doanh
 
 ### Nice to have
-- [ ] Tự doanh (prop trading) — cần nguồn data (Simplize.vn ~500k/tháng hoặc SSI FC nếu có)
-- [ ] TCBS REST API trực tiếp (bypass vnstock) — thử `https://apipubaws.tcbs.com.vn/` vẫn còn sống
-- [ ] DNSE Entrade API — miễn phí, có foreign flow lịch sử
+- [ ] Kiểm tra VNDirect finfo API trên Streamlit Cloud (có thể bị block local, OK trên cloud)
+- [ ] Test page 05 AI Analysis (LangGraph + Groq) end-to-end
+- [ ] Simplize.vn (~500k/tháng) nếu muốn tự doanh ngay mà không đợi SSI
 
 ---
 
-## 8. SSI Fast Connect — Hướng dẫn tích hợp
+## 8. Provider Architecture (data/providers/)
 
-### Lấy credentials
+### Sơ đồ ưu tiên
+```
+auto mode (mặc định)
+  └─ CompositeProvider
+       ├─ [1] VNDirectProvider
+       │     GET finfo-api.vndirect.com.vn/v4/stock_prices
+       │     fields: foreignBuyVolume, foreignSellVolume, foreignNetValue
+       │     Retry: 2 lần, timeout 12s mỗi lần
+       │     → Lịch sử N ngày thực sự (nếu server phản hồi)
+       └─ [2] KBSProvider (fallback)
+             KBS price_board snapshot hôm nay
+             + đọc .cache/ff_snapshots/{TICKER}/{YYYY-MM-DD}.json
+             → Tích lũy lịch sử dần theo thời gian dùng
+```
+
+### Chuyển sang SSI (khi có credentials)
+```toml
+# .streamlit/secrets.toml
+FLOW_PROVIDER       = "ssi"
+SSI_CONSUMER_ID     = "your_id"
+SSI_CONSUMER_SECRET = "your_secret"
+```
+Không cần sửa bất kỳ code nào khác. Chỉ implement phần TODO trong `data/providers/ssi_provider.py`.
+
+### SSI Fast Connect — Bước đăng ký
 1. Đăng nhập: https://iboard.ssi.com.vn
 2. Support → API Service → Management → Tạo API key
 3. Nhận `consumerID` + `consumerSecret`
+4. `pip install ssi-fc-data` (thêm vào `requirements.txt`)
 
-### Cài đặt
-```bash
-pip install ssi-fc-data
+### KBS Snapshot Persistence
+Mỗi lần app được mở, snapshot hôm nay tự động được ghi:
 ```
-
-### Thêm vào secrets.toml
-```toml
-# .streamlit/secrets.toml
-SSI_CONSUMER_ID = "your_consumer_id"
-SSI_CONSUMER_SECRET = "your_consumer_secret"
+.cache/ff_snapshots/
+  VIC/
+    2026-05-21.json  → {date, buy_vol, sell_vol, net_vol, net_val}
+    2026-05-22.json
+    ...
 ```
-
-### Code mẫu
-```python
-# data/ssi_client.py
-import streamlit as st
-from ssi_fc_data import fc_md_client, model
-
-class _SSIConfig:
-    auth_type      = 'Bearer'
-    consumerID     = st.secrets["SSI_CONSUMER_ID"]
-    consumerSecret = st.secrets["SSI_CONSUMER_SECRET"]
-    url            = 'https://fc-data.ssi.com.vn/'
-    stream_url     = 'https://fc-data.ssi.com.vn/'
-
-_config = _SSIConfig()
-_client = fc_md_client.MarketDataClient(_config)
-
-def get_daily_stock_price(ticker: str, from_date: str, to_date: str):
-    """from_date, to_date format: 'DD/MM/YYYY'"""
-    req = model.daily_stock_price(ticker, from_date, to_date, 1, 100, 'hose')
-    return _client.daily_stock_price(_config, req)
-```
+Sau 2 tuần sử dụng sẽ có ~10 ngày lịch sử. Không cần API bên ngoài.
 
 ---
 
@@ -213,3 +250,18 @@ Streamlit Cloud Secrets         → Cùng các key trên, thêm SSI khi có
 ```
 
 **Không bao giờ commit**: `.env`, `secrets.toml`, `ssi_config.py`
+
+---
+
+## 10. Ghi chú API đã kiểm tra (2026-05-21)
+
+| API | Status | Ghi chú |
+|---|---|---|
+| TCBS `apipubaws.tcbs.com.vn/stock-insight/` | ❌ Dead | HTTP 404 toàn bộ endpoint |
+| DNSE `services.entrade.com.vn/chart-api/v2/ohlcs/stock` | ✅ Hoạt động | Chỉ có OHLCV, không có foreign flow |
+| DNSE foreign flow endpoints | ❌ Dead | HTTP 401/404 |
+| VNDirect `finfo-api.vndirect.com.vn/v4/stock_prices` | ⚠️ Timeout local | Có thể OK trên Streamlit Cloud |
+| CafeF AJAX `s.cafef.vn/Ajax/.../GetForeignStatistic` | ❌ Dead | HTTP 404 |
+| FireAnt REST v2 | ❌ Auth | HTTP 401, cần token |
+| Simplize API | ❌ Dead | HTTP 404 |
+| SSI Fast Connect | ⏳ Chờ credentials | Stub đã implement sẵn |
