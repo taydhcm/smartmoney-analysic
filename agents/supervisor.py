@@ -42,8 +42,9 @@ Sau khi các agents hoàn thành, tổng hợp kết quả thành:
 Trả lời bằng tiếng Việt, súc tích nhưng đầy đủ số liệu.
 """
 
-# Workers có thể route đến
-WorkerName = Literal["data_agent", "news_agent", "sector_agent", "FINISH"]
+# Workers có thể route đến — phải dùng "__end__" (không phải "FINISH")
+# LangGraph 1.2+ đọc type annotation này để tạo edges, nên phải khớp đúng tên node
+WorkerName = Literal["data_agent", "news_agent", "sector_agent", "__end__"]
 
 
 def supervisor_node(state: AgentState) -> Command[WorkerName]:
