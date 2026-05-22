@@ -36,6 +36,11 @@ MODEL_PATH     = _ARTIFACTS_DIR / "alpha_model.pkl"
 SCALER_PATH    = _ARTIFACTS_DIR / "alpha_scaler.pkl"
 META_PATH      = _ARTIFACTS_DIR / "alpha_meta.pkl"
 
+# ── Model versioning ────────────────────────────────────────────────────────────
+# Tăng khi thay đổi: label definition, feature list, hoặc training schema.
+# Artifact có version khác → bị reject tự động trong load_model().
+MODEL_LABEL_VERSION = "v2_path_dependent_5d"   # M2 path-dependent label, hold 5 phiên
+
 
 # ── Model factory ──────────────────────────────────────────────────────────────
 
@@ -179,17 +184,22 @@ def train_model(dataset: pd.DataFrame, save: bool = True) -> dict:
     prec_vals = [m["precision"] for m in fold_metrics]
 
     metrics = {
-        "trained_at":    datetime.now().isoformat(),
-        "n_samples":     int(len(X_raw)),
-        "n_tickers":     int(dataset["ticker"].nunique()) if "ticker" in dataset.columns else 0,
-        "pos_rate":      float(pos_rate),
-        "pos_weight":    float(pos_weight),
-        "cv_auc_mean":   float(np.mean(auc_vals)),
-        "cv_auc_std":    float(np.std(auc_vals)),
-        "cv_prec_mean":  float(np.mean(prec_vals)),
-        "fold_details":  fold_metrics,
-        "model_type":    type(final_model).__name__,
+        "trained_at":     datetime.now().isoformat(),
+        "n_samples":      int(len(X_raw)),
+        "n_tickers":      int(dataset["ticker"].nunique()) if "ticker" in dataset.columns else 0,
+        "pos_rate":       float(pos_rate),
+        "pos_weight":     float(pos_weight),
+        "cv_auc_mean":    float(np.mean(auc_vals)),
+        "cv_auc_std":     float(np.std(auc_vals)),
+        "cv_prec_mean":   float(np.mean(prec_vals)),
+        "fold_details":   fold_metrics,
+        "model_type":     type(final_model).__name__,
         "feature_importance": feat_imp,
+        # ── Compatibility signature ────────────────────────────────────────────
+        # Dùng để phát hiện model stale khi FEATURE_COLS hoặc label thay đổi.
+        "feature_cols":   list(FEATURE_COLS),          # snapshot tại thời điểm train
+        "n_features":     len(FEATURE_COLS),
+        "label_version":  MODEL_LABEL_VERSION,          # schema label
     }
 
     if save:
@@ -211,22 +221,75 @@ def train_model(dataset: pd.DataFrame, save: bool = True) -> dict:
 
 # ── Load ───────────────────────────────────────────────────────────────────────
 
+def is_model_compatible() -> tuple[bool, str]:
+    """
+    Kiểm tra artifact hiện tại có tương thích với FEATURE_COLS và label schema không.
+
+    Returns
+    -------
+    (True, "OK") nếu tương thích.
+    (False, reason_str) nếu không tương thích — cần retrain.
+    """
+    if not MODEL_PATH.exists() or not SCALER_PATH.exists():
+        return False, "Chưa có artifact (chưa train lần nào)"
+
+    if not META_PATH.exists():
+        return False, "Không có metadata — artifact cũ (trước v2.0), cần retrain"
+
+    try:
+        with open(META_PATH, "rb") as f:
+            meta = pickle.load(f)
+    except Exception as exc:
+        return False, f"Không đọc được metadata: {exc}"
+
+    # Kiểm tra label version
+    saved_label = meta.get("label_version", "v1_t2_return")
+    if saved_label != MODEL_LABEL_VERSION:
+        return False, (
+            f"Label version thay đổi: artifact='{saved_label}' ≠ current='{MODEL_LABEL_VERSION}'. "
+            "Cần retrain với M2 path-dependent label mới."
+        )
+
+    # Kiểm tra feature list
+    saved_cols = meta.get("feature_cols")
+    if saved_cols is None:
+        # Artifact cũ không lưu feature_cols → không thể verify
+        return False, "Artifact cũ không lưu feature_cols — cần retrain"
+
+    if saved_cols != list(FEATURE_COLS):
+        added   = [c for c in FEATURE_COLS if c not in saved_cols]
+        removed = [c for c in saved_cols    if c not in FEATURE_COLS]
+        parts = []
+        if added:   parts.append(f"thêm {len(added)} feature: {added}")
+        if removed: parts.append(f"bỏ {len(removed)} feature: {removed}")
+        return False, f"FEATURE_COLS thay đổi ({'; '.join(parts)}) — cần retrain"
+
+    return True, "OK"
+
+
 def load_model() -> tuple | None:
     """
     Load trained model + scaler từ artifacts.
-    Returns (model, scaler, meta) hoặc None nếu chưa train.
+
+    Returns
+    -------
+    (model, scaler, meta) nếu tương thích và load được.
+    None nếu:
+      - Chưa có artifact
+      - Artifact không tương thích (feature/label mismatch) → user cần retrain
     """
-    if not MODEL_PATH.exists() or not SCALER_PATH.exists():
+    compatible, reason = is_model_compatible()
+    if not compatible:
+        log.warning("[MODEL] Không load: %s", reason)
         return None
+
     try:
         with open(MODEL_PATH,  "rb") as f:
             model  = pickle.load(f)
         with open(SCALER_PATH, "rb") as f:
             scaler = pickle.load(f)
-        meta: dict = {}
-        if META_PATH.exists():
-            with open(META_PATH, "rb") as f:
-                meta = pickle.load(f)
+        with open(META_PATH, "rb") as f:
+            meta = pickle.load(f)
         return model, scaler, meta
     except Exception as exc:
         log.warning("Không load được model: %s", exc)
@@ -234,5 +297,6 @@ def load_model() -> tuple | None:
 
 
 def model_exists() -> bool:
-    """Kiểm tra xem model đã được train chưa."""
-    return MODEL_PATH.exists() and SCALER_PATH.exists()
+    """True nếu artifact tồn tại VÀ tương thích với FEATURE_COLS + label hiện tại."""
+    compatible, _ = is_model_compatible()
+    return compatible

@@ -22,7 +22,7 @@ import streamlit as st
 
 from config.constants import VN30_TICKERS, SECTOR_MAP
 from ml.dataset_builder import build_dataset
-from ml.model import model_exists, train_model
+from ml.model import MODEL_LABEL_VERSION, META_PATH, MODEL_PATH, is_model_compatible, model_exists, train_model
 from ml.predictor import get_current_regime, get_feature_importance, predict_all, predict_today
 from ml.regime import RegimeState
 
@@ -174,33 +174,48 @@ st.header("📦 Trạng Thái Model")
 col_status, col_train = st.columns([3, 2])
 
 with col_status:
-    if model_exists():
+    _compatible, _compat_reason = is_model_compatible()
+    _artifact_exists = MODEL_PATH.exists()
+
+    if _compatible:
         try:
-            from ml.model import META_PATH
             import pickle
             with open(META_PATH, "rb") as _f:
                 _meta = pickle.load(_f)
             trained_at = _meta.get("trained_at", "unknown")
             st.success(
-                f"✅ Model đã sẵn sàng — **{_meta.get('model_type', 'GBM')}**\n\n"
+                f"✅ Model sẵn sàng — **{_meta.get('model_type', 'GBM')}**\n\n"
                 f"- Train: {_meta.get('n_samples', '?')} rows | "
                 f"{_meta.get('n_tickers', '?')} tickers\n"
+                f"- Features: **{_meta.get('n_features', '?')}** | "
+                f"Label: `{_meta.get('label_version', '?')}`\n"
                 f"- CV AUC: **{_meta.get('cv_auc_mean', 0):.3f}** "
                 f"± {_meta.get('cv_auc_std', 0):.3f}\n"
                 f"- Precision@0.65: **{_meta.get('cv_prec_mean', 0):.2f}**\n"
                 f"- Trained at: {trained_at[:19] if trained_at else '?'}"
             )
         except Exception:
-            st.success("✅ Model đã sẵn sàng (metadata không đọc được)")
-    else:
-        st.warning(
-            "⚠️ Chưa có model. Nhấn **Train Model** để bắt đầu.\n\n"
+            st.success("✅ Model sẵn sàng (metadata không đọc được)")
+
+    elif not _artifact_exists:
+        st.info(
+            "ℹ️ Chưa có model. Nhấn **Train Model** để bắt đầu.\n\n"
             "Yêu cầu: kết nối VCI OHLCV (chạy local)."
+        )
+    else:
+        # Artifact tồn tại nhưng không tương thích
+        st.warning(
+            f"⚠️ **Model lỗi thời — cần retrain!**\n\n"
+            f"🔍 Lý do: _{_compat_reason}_\n\n"
+            f"Feature hiện tại: **{len(FEATURE_COLS)} cols** — "
+            f"Label: `{MODEL_LABEL_VERSION}`\n\n"
+            "➡️ Nhấn **Retrain Model** bên cạnh để xây lại."
         )
 
 with col_train:
+    _btn_label = "🏋️ Retrain Model" if (not _compatible and _artifact_exists) else "🏋️ Train Model"
     do_train = st.button(
-        "🏋️ Train Model",
+        _btn_label,
         type="primary",
         use_container_width=True,
         help="Build dataset → train GBM → lưu model",
@@ -304,7 +319,13 @@ with col_all:
     )
 
 if not model_exists():
-    st.info("Chưa có model. Train trước để sử dụng prediction.")
+    if not _compatible and _artifact_exists:
+        st.warning(
+            f"⚠️ Model lỗi thời: **{_compat_reason}**\n\n"
+            "↩️ Nhấn **Retrain Model** ở trên rồi chạy prediction lại."
+        )
+    else:
+        st.info("ℹ️ Chưa có model. Train trước để sử dụng prediction.")
     st.stop()
 
 # ETA notice ngay trước khi predict
