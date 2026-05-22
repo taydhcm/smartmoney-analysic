@@ -99,6 +99,36 @@ with st.sidebar:
     else:
         st.success("⚡ **SSI API** — Không giới hạn request")
 
+    # ── D0.2 Logger Status ────────────────────────────────────────────
+    st.divider()
+    st.markdown("**📦 D0.2 Data Logger**")
+    try:
+        from data.snapshot_logger import get_logger_status
+        _ls = get_logger_status()
+        _sessions = _ls["sessions"]
+        _s4_ready = _ls["s4_ready"]
+        _needed   = _ls["sessions_needed"]
+        _last_dt  = _ls.get("last_date") or "—"
+        if _s4_ready:
+            st.success(f"✅ **S4 sẵn sàng** — {_sessions} phiên ({_last_dt})")
+        else:
+            st.info(f"⏳ {_sessions}/{5} phiên — cần {_needed} phiên nữa để bật S4")
+        if st.button("📥 Log hôm nay", key="btn_log_today",
+                     help="Ghi snapshot phiên hôm nay vào SQLite (15:05 tự động)"):
+            with st.spinner("Đang thu thập dữ liệu..."):
+                from data.snapshot_logger import log_session
+                _res = log_session()
+                if _res["already_exists"]:
+                    st.info(f"Đã log phiên {_res['session_date']} rồi.")
+                else:
+                    st.success(
+                        f"✅ Logged {_res['tickers_logged']} tickers "
+                        f"({_res['session_date']})"
+                    )
+            st.rerun()
+    except Exception as _e:
+        st.caption(f"Logger: {_e}")
+
 # ── Header ────────────────────────────────────────────────────────────────────
 from utils.rate_limiter import vnstock_limiter as _limiter
 _throttled = _limiter.is_throttled
@@ -460,18 +490,21 @@ if do_predict or "alpha_picks" in st.session_state:
         conf_colors = {"high": "🟢", "medium": "🟡", "low": "🔴"}
         _RS_BADGE  = {"Outperform": "🟢 Outperform", "Neutral": "⚪ Neutral", "Underperform": "🔴 Underperform"}
         _VOL_BADGE = {"Strong": "💧💧💧 Strong", "Moderate": "💧💧 Moderate", "Weak": "💧 Weak", "Bearish": "🔻 Bearish"}
+        _SM_BADGE  = {"Accumulating": "🏦 Acc", "Distributing": "🔻 Dist", "Neutral": "⚪ Neutral", "Insufficient data": "❓ —"}
 
         for pick in picks:
             conf_icon = conf_colors.get(pick["confidence"], "⚪")
             _rs       = pick.get("rs") or {}
             _vc       = pick.get("vc") or {}
+            _sm       = pick.get("sm") or {}
             _rs_label = _RS_BADGE.get(_rs.get("rs_label", "Neutral"), "⚪ Neutral")
             _vc_label = _VOL_BADGE.get(_vc.get("label", "Weak"), "💧 Weak")
+            _sm_label = _SM_BADGE.get(_sm.get("label", "Insufficient data"), "❓ —")
             _comp     = pick.get("composite_score", pick["probability"])
 
             with st.expander(
                 f"{conf_icon} **{pick['ticker']}** — P={pick['probability']:.1%}  |  "
-                f"Score={_comp:.2f}  |  RS: {_rs_label}  |  Vol: {_vc_label}",
+                f"Score={_comp:.2f}  |  RS: {_rs_label}  |  Vol: {_vc_label}  |  SM: {_sm_label}",
                 expanded=(pick["confidence"] == "high"),
             ):
                 c1, c2, c3 = st.columns(3)
@@ -603,6 +636,46 @@ if do_predict or "alpha_picks" in st.session_state:
                     if _sz.get("reasoning"):
                         st.caption(_sz["reasoning"])
 
+                # ── S4 Smart Money Flow card ─────────────────────────────────
+                _sm = pick.get("sm") or {}
+                _sm_sessions = _sm.get("sessions", 0)
+                st.markdown("---")
+                st.markdown("**🏦 Smart Money Flow (S4 D0.2)**")
+                if _sm_sessions < 5:
+                    st.caption(
+                        f"⏳ Cần thêm **{5 - _sm_sessions} phiên** dữ liệu D0.2. "
+                        f"Bấm 'Log hôm nay' ở sidebar mỗi ngày sau 15:05."
+                    )
+                else:
+                    _sm_cols = st.columns(4)
+                    _sm_cols[0].metric(
+                        "Net% hôm nay",
+                        f"{_sm.get('foreign_net_pct', 0):+.2%}",
+                        help="Foreign net vol / total vol hôm nay"
+                    )
+                    _sm_cols[1].metric(
+                        "Net% TB5d",
+                        f"{_sm.get('foreign_net_5d', 0):+.2%}",
+                        help="TB 5 phiên gần nhất"
+                    )
+                    _sm_cols[2].metric(
+                        "Trend",
+                        f"{_sm.get('foreign_trend', 0):+.2f}",
+                        help="Slope của foreign net [-1, +1]"
+                    )
+                    _sm_cols[3].metric(
+                        "SM Score",
+                        f"{_sm.get('smart_money_score', 0):+.2f}",
+                        help="Composite score [-1, +1]. >0.15 = Accumulating"
+                    )
+                    _sm_label = _sm.get("label", "Neutral")
+                    if _sm_label == "Accumulating":
+                        st.success(f"🏦 Ngoại tệ đang **tích lũy** — {_sm_sessions} phiên data")
+                    elif _sm_label == "Distributing":
+                        st.error(f"🔻 Ngoại tệ đang **phân phối** — {_sm_sessions} phiên data")
+                    else:
+                        st.info(f"⚪ Dòng tiền ngoại **trung tính** — {_sm_sessions} phiên data")
+
                 # Output JSON (compact)
                 with st.expander("🔎 Raw JSON", expanded=False):
                     st.code(
@@ -618,6 +691,7 @@ if do_predict or "alpha_picks" in st.session_state:
                                 "entry":           _entry,
                                 "vc":              _vc,
                                 "sizing":          _sz,
+                                "sm":              _sm,
                             },
                             ensure_ascii=False,
                             indent=2,

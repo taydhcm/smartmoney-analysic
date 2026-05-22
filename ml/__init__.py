@@ -1,6 +1,6 @@
 """
 ml/__init__.py
-Alpha Signal ML package — v2.2
+Alpha Signal ML package — v3.0
 """
 
 from .feature_engineering import FEATURE_COLS, compute_stock_features
@@ -12,6 +12,7 @@ from .entry_timing import EntryZone, compute_entry_zone
 from .volume_confirmation import VolumeConfirmation, compute_volume_confirmation
 from .portfolio_sizing import PositionSize, compute_position_size
 from .backtest import BacktestResult, run_backtest
+from .smart_money import SmartMoneySignal, compute_smart_money, compute_smart_money_features
 
 __all__ = [
     # feature engineering
@@ -39,7 +40,7 @@ __all__ = [
     # S5 entry timing
     "EntryZone",
     "compute_entry_zone",
-    # S4 volume confirmation
+    # volume confirmation (Sprint 3)
     "VolumeConfirmation",
     "compute_volume_confirmation",
     # D3.4 portfolio sizing
@@ -48,4 +49,8 @@ __all__ = [
     # backtest
     "BacktestResult",
     "run_backtest",
+    # S4 Smart Money Flow (Sprint 4)
+    "SmartMoneySignal",
+    "compute_smart_money",
+    "compute_smart_money_features",
 ]

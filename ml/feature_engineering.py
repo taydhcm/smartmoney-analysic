@@ -16,6 +16,7 @@ log = get_logger(__name__)
 
 # ─── Canonical feature list (train + predict dùng cùng thứ tự) ────────────────
 # v2.0: Thêm 3 regime features từ S3 Market Regime Engine (adx_vn30, vn30_di_diff, regime_score)
+# v3.0: Thêm 3 smart money features từ S4 D0.2 SQLite logger (foreign_net_pct, foreign_trend, smart_money_score)
 FEATURE_COLS: list[str] = [
     # Return
     "return_1d",
@@ -35,7 +36,7 @@ FEATURE_COLS: list[str] = [
     "body_ratio",
     "upper_shadow",
     "lower_shadow",
-    # Smart money proxy
+    # Smart money proxy (OHLCV-derived)
     "divergence_score",
     "pull_push_score",
     "accumulation_score",
@@ -47,9 +48,14 @@ FEATURE_COLS: list[str] = [
     "basis_zscore",
     "basis_extreme_flag",
     # S3 Market Regime features (v2.0)
-    "adx_vn30",       # ADX(14) của VN30, normalized [0,1] — sức mạnh trend thị trường
-    "vn30_di_diff",   # (DI+ - DI-)/100 — dương = bull trend, âm = bear trend
-    "regime_score",   # Raw score [-4, +4] — tổng hợp tất cả regime signals
+    "adx_vn30",           # ADX(14) của VN30, normalized [0,1]
+    "vn30_di_diff",       # (DI+ - DI-)/100 — dương = bull trend, âm = bear trend
+    "regime_score",       # Raw score [-4, +4]
+    # S4 Smart Money Flow features from D0.2 SQLite (v3.0)
+    # Giá trị = 0.0 khi chưa đủ 5 phiên dữ liệu (model vẫn hoạt động bình thường)
+    "foreign_net_pct",    # TB 5 phiên: foreign net / total vol [-1, +1]
+    "foreign_trend",      # Slope of foreign net pct [-1, +1]
+    "smart_money_score",  # Composite D0.2 score [-1, +1]
 ]
 
 
@@ -141,19 +147,23 @@ def _rolling_accumulation(df: pd.DataFrame, window: int = 20) -> pd.Series:
 def compute_stock_features(
     df: pd.DataFrame,
     vn30_df: pd.DataFrame | None = None,
+    sm_features: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     """
     Tính tất cả features + label cho 1 ticker từ OHLCV.
 
     Parameters
     ----------
-    df       : OHLCV của 1 ticker (cột: date, open, high, low, close, volume).
-    vn30_df  : OHLCV chỉ số VN30 (optional, dùng để tính relative strength).
+    df          : OHLCV của 1 ticker (cột: date, open, high, low, close, volume).
+    vn30_df     : OHLCV chỉ số VN30 (optional, dùng để tính relative strength).
+    sm_features : Dict {"foreign_net_pct", "foreign_trend", "smart_money_score"}
+                  từ S4 Smart Money Engine. None hoặc {} → set 0.0 (default khi
+                  chưa đủ 5 phiên D0.2 data).
 
     Returns
     -------
     DataFrame với cột: date, [FEATURE_COLS], forward_return_2d, label.
-    Label NaN với 2 rows cuối (không có T+2 trong tương lai).
+    Label NaN với 5 rows cuối (không có T+5 trong tương lai).
     """
     if df.empty or len(df) < 20:
         return pd.DataFrame()
@@ -255,6 +265,14 @@ def compute_stock_features(
         out["adx_vn30"]           = 0.0
         out["vn30_di_diff"]       = 0.0
         out["regime_score"]       = 0.0
+
+    # ── S4 Smart Money features (v3.0) ────────────────────────────────────────
+    # Chuyen vao duoi dang scalar cho toan bo time series (gia tri ngay cuoi cung).
+    # Khi chua du 5 phien D0.2 data: sm_features=None -> set 0.0 cho ca series.
+    _sm = sm_features or {}
+    out["foreign_net_pct"]   = float(_sm.get("foreign_net_pct",   0.0))
+    out["foreign_trend"]     = float(_sm.get("foreign_trend",     0.0))
+    out["smart_money_score"] = float(_sm.get("smart_money_score", 0.0))
 
     # ── M2 Label: Path-dependent (v2.0) ───────────────────────────────────────
     # y=1 khi: max(close[T+1..T+5])/close[T] >= 1.05  (đạt target +5%)

@@ -64,7 +64,14 @@ def build_dataset(
                 log.warning("Bỏ qua %s: chỉ có %d rows OHLCV", ticker, len(ohlcv))
                 continue
 
-            feat_df = compute_stock_features(ohlcv, vn30_df)
+            # S4 Smart Money features từ D0.2 SQLite (0.0 khi chưa đủ data)
+            try:
+                from ml.smart_money import compute_smart_money_features
+                sm_feat = compute_smart_money_features(ticker)
+            except Exception:
+                sm_feat = None
+
+            feat_df = compute_stock_features(ohlcv, vn30_df, sm_features=sm_feat)
             if feat_df.empty:
                 continue
 

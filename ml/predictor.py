@@ -16,6 +16,11 @@ v2.1: Sprint 2 — S2 + S5 + D3.2 + D3.3
 v2.2: Sprint 3 — S4 + D3.4
   - S4  Volume Confirmation Engine: vol_surge, vol_quality, OBV score per pick
   - D3.4 Portfolio Sizing: Kelly Criterion position size per pick
+
+v2.3: Sprint 4 — D0.2 + S4 Smart Money
+  - D0.2 SQLite logger ghi daily snapshot 15:05
+  - S4 Smart Money Flow: foreign_net_pct, foreign_trend, smart_money_score per pick
+  - compute_stock_features nhan them sm_features tu D0.2 SQLite
 """
 
 from __future__ import annotations
@@ -35,6 +40,7 @@ from .relative_strength import RSInfo, compute_stock_rs, rank_by_rs
 from .entry_timing import EntryZone, compute_entry_zone
 from .volume_confirmation import VolumeConfirmation, compute_volume_confirmation
 from .portfolio_sizing import PositionSize, compute_position_size
+from .smart_money import SmartMoneySignal, compute_smart_money, compute_smart_money_features
 
 log = logging.getLogger(__name__)
 
@@ -131,7 +137,13 @@ def predict_today(
             if ohlcv.empty or len(ohlcv) < 25:
                 continue
 
-            feat_df = compute_stock_features(ohlcv, vn30_df)
+            # S4 Smart Money features tu D0.2 SQLite (0.0 khi chua du 5 phien)
+            try:
+                sm_feat = compute_smart_money_features(ticker)
+            except Exception:
+                sm_feat = None
+
+            feat_df = compute_stock_features(ohlcv, vn30_df, sm_features=sm_feat)
             if feat_df.empty:
                 continue
 
@@ -242,6 +254,10 @@ def predict_today(
         # S4: Volume Confirmation
         vc = compute_volume_confirmation(ohlcv, ticker=ticker) if ohlcv is not None else None
         row["vc"] = vc.as_dict() if vc is not None else None
+
+        # S4 Smart Money Flow (D0.2 SQLite)
+        sm = compute_smart_money(ticker)
+        row["sm"] = sm.as_dict()
 
         # D3.4: Portfolio Sizing (Kelly)
         rr = entry.rr_ratio if entry is not None else 1.0
