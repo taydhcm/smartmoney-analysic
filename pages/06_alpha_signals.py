@@ -402,21 +402,25 @@ if do_predict or "alpha_picks" in st.session_state:
         color_map = {"high": "#00cc66", "medium": "#ffaa00", "low": "#ff6666"}
         fig_bar = go.Figure()
         for _, row in picks_df.iterrows():
+            _comp_score = row.get("composite_score", row["probability"])
+            _rs_lbl     = (row.get("rs") or {}).get("rs_label", "Neutral")
+            _rs_icon    = {"Outperform": "🟢", "Neutral": "⚪", "Underperform": "🔴"}.get(_rs_lbl, "⚪")
             fig_bar.add_trace(
                 go.Bar(
-                    x=[row["probability"]],
+                    x=[_comp_score],
                     y=[row["ticker"]],
                     orientation="h",
                     marker_color=color_map.get(row["confidence"], "#888"),
                     name=row["confidence"],
                     showlegend=False,
-                    text=f"{row['probability']:.0%}",
+                    text=f"{row['probability']:.0%} {_rs_icon}",
                     textposition="inside",
                     hovertemplate=(
                         f"<b>{row['ticker']}</b><br>"
                         f"P_alpha: {row['probability']:.1%}<br>"
+                        f"Composite: {_comp_score:.3f}<br>"
+                        f"RS: {_rs_lbl}<br>"
                         f"Pattern: {row['pattern']}<br>"
-                        f"Expected: {row['expected_return']}<br>"
                         f"RSI: {row['rsi']:.0f} | Vol×: {row['volume_ratio_5d']:.1f}<extra></extra>"
                     ),
                 )
@@ -426,8 +430,8 @@ if do_predict or "alpha_picks" in st.session_state:
         fig_bar.add_vline(x=saved_prob, line_dash="dash", line_color="white", opacity=0.5)
 
         fig_bar.update_layout(
-            title="P(return T+2 ≥ +5%) per ticker",
-            xaxis=dict(tickformat=".0%", range=[0, 1], title="Probability"),
+            title="Composite Score per ticker  (0.6×P_alpha + 0.4×RS_rank, bar label = P_alpha 🟢/⚪/🔴 RS)",
+            xaxis=dict(tickformat=".2f", range=[0, 1], title="Composite Score"),
             yaxis=dict(categoryorder="total ascending"),
             height=max(200, len(picks) * 45 + 80),
             margin=dict(l=10, r=10, t=40, b=10),
@@ -440,24 +444,30 @@ if do_predict or "alpha_picks" in st.session_state:
         st.subheader("📋 Chi Tiết Alpha Picks")
 
         conf_colors = {"high": "🟢", "medium": "🟡", "low": "🔴"}
+        _RS_BADGE = {"Outperform": "🟢 Outperform", "Neutral": "⚪ Neutral", "Underperform": "🔴 Underperform"}
 
         for pick in picks:
             conf_icon = conf_colors.get(pick["confidence"], "⚪")
+            _rs       = pick.get("rs") or {}
+            _rs_label = _RS_BADGE.get(_rs.get("rs_label", "Neutral"), "⚪ Neutral")
+            _comp     = pick.get("composite_score", pick["probability"])
+
             with st.expander(
                 f"{conf_icon} **{pick['ticker']}** — P={pick['probability']:.1%}  |  "
-                f"{pick['expected_return']}  |  {pick['confidence'].upper()}",
+                f"Score={_comp:.2f}  |  RS: {_rs_label}  |  {pick['expected_return']}",
                 expanded=(pick["confidence"] == "high"),
             ):
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     st.metric("P_alpha", f"{pick['probability']:.1%}")
-                    st.metric("Expected Return", pick["expected_return"])
+                    st.metric("Composite Score", f"{_comp:.3f}",
+                              help="0.6×P_alpha + 0.4×RS_rank (D3.2)")
                 with c2:
                     st.metric("RSI (14)", f"{pick['rsi']:.0f}")
                     st.metric("Volume ×5d avg", f"{pick['volume_ratio_5d']:.2f}×")
                 with c3:
                     st.metric("Return hôm qua", f"{pick['return_1d_pct']:+.2f}%")
-                    st.metric("vs VN30", f"{pick['relative_strength']:+.2f}%")
+                    st.metric("vs VN30 (1d)", f"{pick['relative_strength']:+.2f}%")
 
                 st.markdown(f"**Pattern:** `{pick['pattern']}`")
 
@@ -467,21 +477,80 @@ if do_predict or "alpha_picks" in st.session_state:
                 _pp_norm = (pick["pull_push_score"] + 1) / 2
                 col_c.progress(_pp_norm, text=f"Pull/Push: {pick['pull_push_score']:+.2f}")
 
-                # Output JSON
-                st.code(
-                    json.dumps(
-                        {
-                            "ticker":          pick["ticker"],
-                            "probability":     pick["probability"],
-                            "expected_return": pick["expected_return"],
-                            "pattern":         pick["pattern"],
-                            "confidence":      pick["confidence"],
-                        },
-                        ensure_ascii=False,
-                        indent=2,
-                    ),
-                    language="json",
-                )
+                # ── S2 Relative Strength card ───────────────────────────────
+                if _rs:
+                    st.markdown("---")
+                    st.markdown("**📈 Relative Strength (S2)**")
+                    _rs_cols = st.columns(5)
+                    _rs_cols[0].metric("RS 1 ngày",  f"{_rs.get('rs_1d', 0):+.2f}%")
+                    _rs_cols[1].metric("RS 5 ngày",  f"{_rs.get('rs_5d', 0):+.2f}%")
+                    _rs_cols[2].metric("RS 20 ngày", f"{_rs.get('rs_20d', 0):+.2f}%")
+                    _rs_cols[3].metric(
+                        "RS Rank",
+                        f"{_rs.get('rs_rank', 0.5):.0%}",
+                        help="Percentile trong VN30 universe (100% = mạnh nhất)"
+                    )
+                    _rs_cols[4].metric(
+                        "RS Score",
+                        f"{_rs.get('rs_score', 0):+.2f}",
+                        help="Composite RS score [-1, +1]"
+                    )
+
+                # ── S5 Entry Timing card ────────────────────────────────────
+                _entry = pick.get("entry")
+                if _entry:
+                    st.markdown("---")
+                    st.markdown("**🎯 Entry Timing (S5)**")
+                    _e_cols = st.columns(4)
+                    _e_cols[0].metric(
+                        "Entry Zone",
+                        f"{_entry['entry_low']:,.0f}–{_entry['entry_high']:,.0f}",
+                        help="Vùng giá nên mua, không chase cao hơn entry_high"
+                    )
+                    _e_cols[1].metric(
+                        "Stop-Loss",
+                        f"{_entry['sl_price']:,.0f}",
+                        delta=f"−{_entry['sl_pct']:.1%}",
+                        delta_color="inverse",
+                    )
+                    _e_cols[2].metric(
+                        "Target (+5%)",
+                        f"{_entry['target_price']:,.0f}",
+                    )
+                    _e_cols[3].metric(
+                        "Risk:Reward",
+                        f"1 : {_entry['rr_ratio']:.1f}",
+                        help="Tốt nhất ≥ 1:2 (target gấp đôi SL)"
+                    )
+                    _entry_note = (
+                        f"📌 Support: **{_entry['support']:,.0f}** | "
+                        f"Resistance: **{_entry['resistance']:,.0f}** | "
+                        f"ATR(14): **{_entry['atr']:,.0f}** điểm"
+                    )
+                    if _entry.get("in_entry_zone"):
+                        st.success(f"✅ Giá đang trong entry zone. {_entry_note}")
+                    else:
+                        st.info(f"ℹ️ Chờ giá về entry zone. {_entry_note}")
+
+                # Output JSON (compact)
+                with st.expander("🔎 Raw JSON", expanded=False):
+                    st.code(
+                        __import__("json").dumps(
+                            {
+                                "ticker":          pick["ticker"],
+                                "probability":     pick["probability"],
+                                "composite_score": pick.get("composite_score"),
+                                "expected_return": pick["expected_return"],
+                                "pattern":         pick["pattern"],
+                                "confidence":      pick["confidence"],
+                                "rs":              _rs,
+                                "entry":           _entry,
+                            },
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
+                        language="json",
+                    )
 
     # ─────────────────────────────────────────────────────────────────────────
     # SECTION 4 — Full VN30 heatmap (nếu show_all)

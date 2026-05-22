@@ -6,6 +6,12 @@ v2.0: Tích hợp D3.1 Regime Gate:
   - BEAR  → block toàn bộ long signal, trả về []
   - Các state khác → tự động nâng min_probability theo regime
   - Mỗi pick có thêm trường 'regime' với đầy đủ context
+
+v2.1: Sprint 2 — S2 + S5 + D3.2 + D3.3
+  - S2  Relative Strength Engine: multi-timeframe RS vs VN30, cross-sectional rank
+  - S5  Entry Timing Engine: entry zone, SL price, target, R:R per pick
+  - D3.2 Cross-sectional Ranker: composite_score = 0.6×P + 0.4×rs_rank
+  - D3.3 SL Filter: reject nếu sl_pct > 7% hoặc R:R < 1.0
 """
 
 from __future__ import annotations
@@ -21,12 +27,18 @@ from data.market_data import get_ohlcv, get_index_data
 from .feature_engineering import compute_stock_features, FEATURE_COLS
 from .model import load_model
 from .regime import RegimeInfo, RegimeState, get_market_regime
+from .relative_strength import RSInfo, compute_stock_rs, rank_by_rs
+from .entry_timing import EntryZone, compute_entry_zone
 
 log = logging.getLogger(__name__)
 
 # Threshold mặc định (có thể bị override bởi Regime Gate)
 DEFAULT_MIN_PROB = 0.65
 DEFAULT_MAX_RSI  = 80.0   # loại cổ phiếu overbought rõ ràng
+
+# Trọng số composite score D3.2
+_W_PROB = 0.60
+_W_RS   = 0.40
 
 
 def predict_today(
@@ -95,13 +107,19 @@ def predict_today(
 
     regime_dict = regime.as_dict()
 
-    # ── Prediction loop ───────────────────────────────────────────────────────
-    results: list[dict] = []
+    # ── Pass 1: tính P_alpha + RS cho mỗi ticker ─────────────────────────────
+    # Lưu raw_results (chưa lọc threshold) + RSInfo list để rank cross-sectional
+    raw_results:  list[dict]    = []
+    rs_info_list: list[RSInfo]  = []
+    ohlcv_cache:  dict[str, pd.DataFrame] = {}
     total = len(tickers)
 
     for i, ticker in enumerate(tickers):
         if progress_callback:
-            progress_callback(i / total, f"Dự đoán {ticker} ({i+1}/{total})...")
+            progress_callback(
+                0.05 + 0.80 * (i / total),
+                f"Phân tích {ticker} ({i+1}/{total})...",
+            )
         try:
             ohlcv = get_ohlcv(ticker, period=period)
             if ohlcv.empty or len(ohlcv) < 25:
@@ -137,7 +155,14 @@ def predict_today(
                 log.debug("Bỏ qua %s: RSI=%.1f (overbought)", ticker, rsi)
                 continue
 
-            results.append({
+            # S2: Relative Strength (single stock)
+            rs_info = compute_stock_rs(ohlcv, vn30_df, ticker=ticker)
+            if rs_info is not None:
+                rs_info_list.append(rs_info)
+
+            ohlcv_cache[ticker] = ohlcv
+
+            raw_results.append({
                 "ticker":             ticker,
                 "probability":        round(prob, 4),
                 "expected_return":    _estimate_return(prob),
@@ -150,24 +175,83 @@ def predict_today(
                 "accumulation_score": round(acc_score, 3),
                 "divergence_score":   round(div_score, 3),
                 "pull_push_score":    round(pp_score, 3),
-                "regime":             regime_dict,                 # D3.1 context
+                "regime":             regime_dict,                # D3.1 context
+                "_rs_info":           rs_info,                    # internal, removed below
             })
 
         except Exception as exc:
             log.warning("predict_today(%s) lỗi: %s", ticker, exc)
 
     if progress_callback:
+        progress_callback(0.86, "D3.2 Cross-sectional RS ranking...")
+
+    # ── D3.2: Cross-sectional RS rank (universe-wide) ─────────────────────────
+    if rs_info_list:
+        rank_by_rs(rs_info_list)
+    rs_lookup: dict[str, RSInfo] = {r.ticker: r for r in rs_info_list}
+
+    if progress_callback:
+        progress_callback(0.90, "S5 Entry Timing + D3.3 SL Filter...")
+
+    # ── Pass 2: merge RS rank + entry zone + filter ───────────────────────────
+    filtered: list[dict] = []
+
+    for row in raw_results:
+        ticker  = row["ticker"]
+        prob    = row["probability"]
+        rs_info = row.pop("_rs_info")   # lấy ra khỏi output
+
+        # Gán RS info (rs_rank đã được cập nhật sau cross-sectional rank)
+        final_rs = rs_lookup.get(ticker, rs_info)
+        if final_rs is not None:
+            row["rs"] = final_rs.as_dict()
+        else:
+            row["rs"] = {
+                "ticker": ticker, "rs_1d": 0.0, "rs_5d": 0.0, "rs_20d": 0.0,
+                "rs_60d": 0.0, "rs_trend": 0.0, "rs_score": 0.0,
+                "rs_rank": 0.5, "rs_label": "Neutral",
+            }
+
+        rs_rank = row["rs"]["rs_rank"]
+
+        # D3.2 Composite score
+        row["composite_score"] = round(_W_PROB * prob + _W_RS * rs_rank, 4)
+
+        # S5: Entry Timing
+        ohlcv = ohlcv_cache.get(ticker)
+        entry = compute_entry_zone(ohlcv) if ohlcv is not None else None
+
+        if entry is not None:
+            row["entry"] = entry.as_dict()
+            # D3.3 SL Filter (chỉ áp dụng khi enable_regime_gate bật)
+            if enable_regime_gate and not entry.is_valid():
+                log.debug(
+                    "[D3.3 SL FILTER] %s bị loại: sl_pct=%.1f%% rr=%.2f",
+                    ticker, entry.sl_pct * 100, entry.rr_ratio,
+                )
+                continue
+        else:
+            row["entry"] = None
+
+        # Lọc probability threshold
+        if prob < effective_min_prob:
+            continue
+
+        filtered.append(row)
+
+    if progress_callback:
         progress_callback(1.0, "Hoàn tất dự đoán.")
 
-    # Lọc theo effective threshold (đã điều chỉnh bởi regime) và sort
-    picks = [r for r in results if r["probability"] >= effective_min_prob]
-    picks.sort(key=lambda x: x["probability"], reverse=True)
+    # Sort theo composite_score (D3.2): 60% P_alpha + 40% RS rank
+    filtered.sort(key=lambda x: x["composite_score"], reverse=True)
 
     log.info(
-        "Prediction: %d tickers → %d picks (min_prob=%.2f effective=%.2f regime=%s)",
-        len(results), len(picks), min_probability, effective_min_prob, regime.state.value,
+        "Prediction: %d tickers → %d raw → %d picks "
+        "(min_prob=%.2f effective=%.2f regime=%s)",
+        len(tickers), len(raw_results), len(filtered),
+        min_probability, effective_min_prob, regime.state.value,
     )
-    return picks
+    return filtered
 
 
 def predict_all(
