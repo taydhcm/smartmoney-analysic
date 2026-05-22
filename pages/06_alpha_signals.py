@@ -23,6 +23,7 @@ import streamlit as st
 from config.constants import VN30_TICKERS, SECTOR_MAP
 from ml.dataset_builder import build_dataset
 from ml.model import MODEL_LABEL_VERSION, META_PATH, MODEL_PATH, is_model_compatible, model_exists, train_model
+from ml.backtest import run_backtest
 from ml.predictor import get_current_regime, get_feature_importance, predict_all, predict_today
 from ml.regime import RegimeState
 
@@ -72,6 +73,18 @@ with st.sidebar:
             "nâng ngưỡng P_min theo regime thị trường."
         ),
     )
+
+    # ── Portfolio Capital (D3.4) ───────────────────────────────────────
+    st.divider()
+    portfolio_capital = st.number_input(
+        "Vốn đầu tư (triệu VND)",
+        min_value=0,
+        max_value=10_000,
+        value=0,
+        step=50,
+        help="Nhập vốn để xem khuyến nghị số tiền mỗi vị thế (0 = chỉ xem %).",
+    )
+    portfolio_capital_vnd = portfolio_capital * 1_000_000   # convert to VND
 
     # ── Rate limit mode badge ──────────────────────────────────────────
     st.divider()
@@ -295,6 +308,7 @@ if do_train:
     )
 
     st.session_state["_model_just_trained"] = True
+    st.session_state["alpha_dataset"] = dataset   # cache for backtest
     st.rerun()
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -444,17 +458,20 @@ if do_predict or "alpha_picks" in st.session_state:
         st.subheader("📋 Chi Tiết Alpha Picks")
 
         conf_colors = {"high": "🟢", "medium": "🟡", "low": "🔴"}
-        _RS_BADGE = {"Outperform": "🟢 Outperform", "Neutral": "⚪ Neutral", "Underperform": "🔴 Underperform"}
+        _RS_BADGE  = {"Outperform": "🟢 Outperform", "Neutral": "⚪ Neutral", "Underperform": "🔴 Underperform"}
+        _VOL_BADGE = {"Strong": "💧💧💧 Strong", "Moderate": "💧💧 Moderate", "Weak": "💧 Weak", "Bearish": "🔻 Bearish"}
 
         for pick in picks:
             conf_icon = conf_colors.get(pick["confidence"], "⚪")
             _rs       = pick.get("rs") or {}
+            _vc       = pick.get("vc") or {}
             _rs_label = _RS_BADGE.get(_rs.get("rs_label", "Neutral"), "⚪ Neutral")
+            _vc_label = _VOL_BADGE.get(_vc.get("label", "Weak"), "💧 Weak")
             _comp     = pick.get("composite_score", pick["probability"])
 
             with st.expander(
                 f"{conf_icon} **{pick['ticker']}** — P={pick['probability']:.1%}  |  "
-                f"Score={_comp:.2f}  |  RS: {_rs_label}  |  {pick['expected_return']}",
+                f"Score={_comp:.2f}  |  RS: {_rs_label}  |  Vol: {_vc_label}",
                 expanded=(pick["confidence"] == "high"),
             ):
                 c1, c2, c3 = st.columns(3)
@@ -532,6 +549,60 @@ if do_predict or "alpha_picks" in st.session_state:
                     else:
                         st.info(f"ℹ️ Chờ giá về entry zone. {_entry_note}")
 
+                # ── S4 Volume Confirmation card ─────────────────────────────
+                _vc = pick.get("vc")
+                if _vc:
+                    st.markdown("---")
+                    st.markdown("**📊 Volume Confirmation (S4)**")
+                    _v_cols = st.columns(4)
+                    _v_cols[0].metric(
+                        "Vol Surge",
+                        f"{_vc.get('vol_surge', 0):.2f}×",
+                        help="Volume hiện tại / MA20. >1.15 là surge"
+                    )
+                    _v_cols[1].metric(
+                        "Vol Quality",
+                        f"{_vc.get('vol_quality', 0):.1%}",
+                        help="Tỷ lệ volume ngày tăng trong 10 phiên gần nhất"
+                    )
+                    _v_cols[2].metric(
+                        "OBV Score",
+                        f"{_vc.get('obv_score', 0):+.2f}",
+                        help="On-Balance Volume trend [-1, +1]"
+                    )
+                    _v_cols[3].metric(
+                        "Vol Score",
+                        f"{_vc.get('volume_score', 0):+.2f}",
+                        help="Composite volume score [-1, +1]"
+                    )
+                    _vc_confirmed = _vc.get("is_confirmed", False)
+                    _vc_lbl = _vc.get("label", "Weak")
+                    if _vc_confirmed:
+                        st.success(f"✅ Volume xác nhận xu hướng: **{_vc_lbl}**")
+                    else:
+                        st.warning(f"⚠️ Volume chưa xác nhận: **{_vc_lbl}**")
+
+                # ── D3.4 Portfolio Sizing card ──────────────────────────────
+                _sz = pick.get("sizing")
+                if _sz:
+                    st.markdown("---")
+                    st.markdown("**💼 Portfolio Sizing — Kelly (D3.4)**")
+                    _s_cols = st.columns(4)
+                    _kelly_pct = _sz.get("kelly_pct", 0.0)
+                    _half_kelly = _sz.get("half_kelly_pct", 0.0)
+                    _rec_pct    = _sz.get("recommended_pct", 0.0)
+                    _s_cols[0].metric("Kelly %",      f"{_kelly_pct:.1%}")
+                    _s_cols[1].metric("Half-Kelly %", f"{_half_kelly:.1%}")
+                    _s_cols[2].metric("Khuyến nghị",  f"{_rec_pct:.1%}",
+                                      help="Đã giới hạn: min 2%, max 20%, ≤ 1/max_positions")
+                    if portfolio_capital_vnd > 0:
+                        _cap_vnd = _rec_pct * portfolio_capital_vnd
+                        _s_cols[3].metric("Số tiền (VND)", f"{_cap_vnd:,.0f}")
+                    else:
+                        _s_cols[3].metric("Số tiền", "—", help="Nhập vốn ở sidebar để tính")
+                    if _sz.get("reasoning"):
+                        st.caption(_sz["reasoning"])
+
                 # Output JSON (compact)
                 with st.expander("🔎 Raw JSON", expanded=False):
                     st.code(
@@ -545,6 +616,8 @@ if do_predict or "alpha_picks" in st.session_state:
                                 "confidence":      pick["confidence"],
                                 "rs":              _rs,
                                 "entry":           _entry,
+                                "vc":              _vc,
+                                "sizing":          _sz,
                             },
                             ensure_ascii=False,
                             indent=2,
@@ -670,7 +743,97 @@ if model_exists():
         st.caption("Không có feature importance data")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECTION 6 — Methodology Note
+# SECTION 5.5 — In-sample Backtest
+# ─────────────────────────────────────────────────────────────────────────────
+if model_exists() and "alpha_dataset" in st.session_state:
+    st.divider()
+    st.header("🔄 In-sample Backtest")
+    st.caption(
+        "⚠️ **In-sample** — kết quả có overfitting bias. "
+        "Dùng để kiểm tra tính nhất quán của tín hiệu, không phải để dự báo hiệu suất thực tế."
+    )
+
+    _bt_prob = st.slider(
+        "Min probability cho backtest",
+        min_value=0.50, max_value=0.90, value=0.65, step=0.05,
+        key="bt_min_prob",
+    )
+
+    if st.button("▶ Chạy Backtest", key="run_bt"):
+        with st.spinner("Đang chạy backtest…"):
+            try:
+                from ml.model import load_model
+                from ml.feature_engineering import FEATURE_COLS
+                _bt_model, _bt_scaler, _bt_meta = load_model()
+                _bt_dataset = st.session_state["alpha_dataset"]
+                _bt_result = run_backtest(
+                    dataset=_bt_dataset,
+                    model=_bt_model,
+                    scaler=_bt_scaler,
+                    feature_cols=FEATURE_COLS,
+                    min_prob=_bt_prob,
+                )
+                st.session_state["_bt_result"] = _bt_result
+            except Exception as _e:
+                st.error(f"Lỗi backtest: {_e}")
+
+    _bt = st.session_state.get("_bt_result")
+    if _bt is not None:
+        # Summary metrics
+        _bm_cols = st.columns(6)
+        _bm_cols[0].metric("Tổng tín hiệu", _bt.total_signals)
+        _bm_cols[1].metric("Tổng trades",   _bt.total_trades)
+        _bm_cols[2].metric("Win Rate",       f"{_bt.win_rate:.1%}")
+        _bm_cols[3].metric("Avg Return",     f"{_bt.avg_return_pct:+.2f}%")
+        _bm_cols[4].metric("Sharpe",         f"{_bt.sharpe:.2f}")
+        _bm_cols[5].metric("Max Drawdown",   f"{_bt.max_drawdown_pct:.1f}%")
+
+        _bm_cols2 = st.columns(4)
+        _bm_cols2[0].metric("Avg Win",  f"{_bt.avg_win_pct:+.2f}%")
+        _bm_cols2[1].metric("Avg Loss", f"{_bt.avg_loss_pct:+.2f}%")
+        _bm_cols2[2].metric("Precision",f"{_bt.precision:.1%}")
+        _bm_cols2[3].metric("Calmar",   f"{_bt.calmar:.2f}")
+
+        if _bt.note:
+            st.caption(f"📝 {_bt.note}")
+
+        # Equity curve
+        if _bt.equity_curve is not None and len(_bt.equity_curve) > 1:
+            st.markdown("#### Equity Curve")
+            _eq = _bt.equity_curve.reset_index()
+            _eq.columns = ["date", "equity"]
+            _fig_eq = px.line(
+                _eq, x="date", y="equity",
+                labels={"equity": "Portfolio (khởi đầu=100)", "date": "Ngày"},
+                color_discrete_sequence=["#00cc66"],
+            )
+            _fig_eq.update_layout(
+                height=300,
+                margin=dict(l=10, r=10, t=20, b=10),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(_fig_eq, use_container_width=True)
+
+        # By-ticker breakdown
+        if _bt.by_ticker is not None and not _bt.by_ticker.empty:
+            with st.expander("📋 Kết quả theo ticker", expanded=False):
+                st.dataframe(
+                    _bt.by_ticker.style.format({
+                        "win_rate":    "{:.1%}",
+                        "avg_return":  "{:+.2f}%",
+                        "total_trades":"{:.0f}",
+                    }).background_gradient(subset=["win_rate"], cmap="RdYlGn"),
+                    use_container_width=True,
+                )
+
+        # By-confidence breakdown
+        if _bt.by_confidence is not None and not _bt.by_confidence.empty:
+            with st.expander("📋 Kết quả theo ngưỡng xác suất", expanded=False):
+                st.dataframe(_bt.by_confidence, use_container_width=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 6 — Feature Importance
 # ─────────────────────────────────────────────────────────────────────────────
 st.divider()
 with st.expander("📖 Methodology & Disclaimer", expanded=False):

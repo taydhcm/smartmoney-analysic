@@ -11,7 +11,11 @@ v2.1: Sprint 2 — S2 + S5 + D3.2 + D3.3
   - S2  Relative Strength Engine: multi-timeframe RS vs VN30, cross-sectional rank
   - S5  Entry Timing Engine: entry zone, SL price, target, R:R per pick
   - D3.2 Cross-sectional Ranker: composite_score = 0.6×P + 0.4×rs_rank
-  - D3.3 SL Filter: reject nếu sl_pct > 7% hoặc R:R < 1.0
+  - D3.3 SL Filter: reject nếu sl_pct > 7% hoặc R:R < 0.8
+
+v2.2: Sprint 3 — S4 + D3.4
+  - S4  Volume Confirmation Engine: vol_surge, vol_quality, OBV score per pick
+  - D3.4 Portfolio Sizing: Kelly Criterion position size per pick
 """
 
 from __future__ import annotations
@@ -29,6 +33,8 @@ from .model import load_model
 from .regime import RegimeInfo, RegimeState, get_market_regime
 from .relative_strength import RSInfo, compute_stock_rs, rank_by_rs
 from .entry_timing import EntryZone, compute_entry_zone
+from .volume_confirmation import VolumeConfirmation, compute_volume_confirmation
+from .portfolio_sizing import PositionSize, compute_position_size
 
 log = logging.getLogger(__name__)
 
@@ -226,12 +232,24 @@ def predict_today(
             # D3.3 SL Filter (chỉ áp dụng khi enable_regime_gate bật)
             if enable_regime_gate and not entry.is_valid():
                 log.debug(
-                    "[D3.3 SL FILTER] %s bị loại: sl_pct=%.1f%% rr=%.2f",
+                    "[D3.3 SL FILTER] %s bi loai: sl_pct=%.1f%% rr=%.2f",
                     ticker, entry.sl_pct * 100, entry.rr_ratio,
                 )
                 continue
         else:
             row["entry"] = None
+
+        # S4: Volume Confirmation
+        vc = compute_volume_confirmation(ohlcv, ticker=ticker) if ohlcv is not None else None
+        row["vc"] = vc.as_dict() if vc is not None else None
+
+        # D3.4: Portfolio Sizing (Kelly)
+        rr = entry.rr_ratio if entry is not None else 1.0
+        row["sizing"] = compute_position_size(
+            probability=prob,
+            rr_ratio=rr,
+            regime_max_positions=regime.max_positions,
+        ).as_dict()
 
         # Lọc probability threshold
         if prob < effective_min_prob:
