@@ -519,6 +519,32 @@ if do_predict or "alpha_picks" in st.session_state:
                     st.metric("Return hôm qua", f"{pick['return_1d_pct']:+.2f}%")
                     st.metric("vs VN30 (1d)", f"{pick['relative_strength']:+.2f}%")
 
+                # ── M4 Probability Calibration card (Sprint 6) ─────────────────
+                _p_cal = pick.get("p_calibrated", pick["probability"])
+                _ci_lo = pick.get("ci_lo", _p_cal - 0.05)
+                _ci_hi = pick.get("ci_hi", _p_cal + 0.05)
+                _rec   = pick.get("recommendation", "WATCH")
+                _REC_STYLE = {
+                    "STRONG_BUY": ("🚀 STRONG BUY",  "success"),
+                    "BUY":        ("✅ BUY",          "success"),
+                    "WATCH":      ("👀 WATCH",        "info"),
+                    "HOLD":       ("⏸️ HOLD",         "warning"),
+                    "AVOID":      ("🚫 AVOID",        "error"),
+                }
+                _rec_text, _rec_style = _REC_STYLE.get(_rec, ("👀 WATCH", "info"))
+                st.markdown("---")
+                _cr1, _cr2 = st.columns([1, 2])
+                with _cr1:
+                    getattr(st, _rec_style)(f"**{_rec_text}**")
+                    st.metric("P_calibrated", f"{_p_cal:.1%}",
+                              help="Isotonic-calibrated probability (Sprint 6)")
+                with _cr2:
+                    st.caption(f"90% CI: [{_ci_lo:.1%} — {_ci_hi:.1%}]")
+                    st.progress(
+                        float(min(max(_p_cal, 0.0), 1.0)),
+                        text=f"P_cal={_p_cal:.1%}  |  CI [{_ci_lo:.1%} – {_ci_hi:.1%}]"
+                    )
+
                 st.markdown(f"**Pattern:** `{pick['pattern']}`")
 
                 col_a, col_b, col_c = st.columns(3)
@@ -890,9 +916,10 @@ if model_exists() and "alpha_dataset" in st.session_state:
     if st.button("▶ Chạy Backtest", key="run_bt"):
         with st.spinner("Đang chạy backtest…"):
             try:
-                from ml.model import load_model
+                from ml.model import load_model, load_calibrator
                 from ml.feature_engineering import FEATURE_COLS
                 _bt_model, _bt_scaler, _bt_meta = load_model()
+                _bt_cal = load_calibrator()
                 _bt_dataset = st.session_state["alpha_dataset"]
                 _bt_result = run_backtest(
                     dataset=_bt_dataset,
@@ -900,6 +927,8 @@ if model_exists() and "alpha_dataset" in st.session_state:
                     scaler=_bt_scaler,
                     feature_cols=FEATURE_COLS,
                     min_prob=_bt_prob,
+                    calibrator=_bt_cal,
+                    precision_target=0.35,
                 )
                 st.session_state["_bt_result"] = _bt_result
             except Exception as _e:
@@ -919,8 +948,14 @@ if model_exists() and "alpha_dataset" in st.session_state:
         _bm_cols2 = st.columns(4)
         _bm_cols2[0].metric("Avg Win",  f"{_bt.avg_win_pct:+.2f}%")
         _bm_cols2[1].metric("Avg Loss", f"{_bt.avg_loss_pct:+.2f}%")
-        _bm_cols2[2].metric("Precision",f"{_bt.precision:.1%}")
+        _bm_cols2[2].metric("Precision", f"{_bt.precision:.1%}",
+                            delta=f"target ≥{_bt.precision_target:.0%}",
+                            delta_color="normal" if _bt.meets_target else "inverse")
         _bm_cols2[3].metric("Calmar",   f"{_bt.calmar:.2f}")
+        if _bt.meets_target:
+            st.success(f"✅ Precision {_bt.precision:.1%} ≥ target {_bt.precision_target:.0%}")
+        else:
+            st.warning(f"⚠️ Precision {_bt.precision:.1%} < target {_bt.precision_target:.0%} — cân nhắc hạ ngưỡng hoặc retrain")
 
         if _bt.note:
             st.caption(f"📝 {_bt.note}")

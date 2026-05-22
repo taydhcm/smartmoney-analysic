@@ -21,11 +21,17 @@ v2.3: Sprint 4 — D0.2 + S4 Smart Money
   - D0.2 SQLite logger ghi daily snapshot 15:05
   - S4 Smart Money Flow: foreign_net_pct, foreign_trend, smart_money_score per pick
   - compute_stock_features nhan them sm_features tu D0.2 SQLite
+
+v2.4: Sprint 6 — M4 Probability Calibration
+  - Isotonic Regression calibration → p_calibrated per pick
+  - 90% Wilson score confidence interval [ci_lo, ci_hi]
+  - Recommendation enum: STRONG_BUY | BUY | WATCH | HOLD | AVOID
 """
 
 from __future__ import annotations
 
 import logging
+from enum import Enum
 from typing import Callable
 
 import numpy as np
@@ -34,7 +40,7 @@ import pandas as pd
 from config.constants import VN30_TICKERS
 from data.market_data import get_ohlcv, get_index_data
 from .feature_engineering import compute_stock_features, FEATURE_COLS
-from .model import load_model
+from .model import load_model, load_calibrator, wilson_ci
 from .regime import RegimeInfo, RegimeState, get_market_regime
 from .relative_strength import RSInfo, compute_stock_rs, rank_by_rs
 from .entry_timing import EntryZone, compute_entry_zone
@@ -43,6 +49,17 @@ from .portfolio_sizing import PositionSize, compute_position_size
 from .smart_money import SmartMoneySignal, compute_smart_money, compute_smart_money_features
 
 log = logging.getLogger(__name__)
+
+# ── Recommendation enum (Sprint 6) ───────────────────────────────────────────────────────────────────────────────────
+
+class Recommendation(str, Enum):
+    """Kết luận đầu tư dựa trên xác suất đã calibrate + composite score."""
+    STRONG_BUY = "STRONG_BUY"   # p_cal >= 0.80
+    BUY        = "BUY"          # p_cal >= 0.70
+    WATCH      = "WATCH"        # p_cal >= 0.60
+    HOLD       = "HOLD"         # p_cal >= 0.50
+    AVOID      = "AVOID"        # p_cal < 0.50
+
 
 # Threshold mặc định (có thể bị override bởi Regime Gate)
 DEFAULT_MIN_PROB = 0.65
@@ -89,6 +106,7 @@ def predict_today(
         return []
 
     model, scaler, _meta = loaded
+    calibrator = load_calibrator()   # None nếu chưa có (Sprint 6)
 
     if progress_callback:
         progress_callback(0.0, "Đang tải VN30 + xác định Market Regime...")
@@ -160,6 +178,17 @@ def predict_today(
             X    = scaler.transform(raw_vals.reshape(1, -1))
             prob = float(model.predict_proba(X)[0, 1])
 
+            # Calibrated probability (Sprint 6) — fallback = raw prob
+            if calibrator is not None:
+                try:
+                    p_cal = float(calibrator.predict([prob])[0])
+                    p_cal = float(np.clip(p_cal, 0.0, 1.0))
+                except Exception:
+                    p_cal = prob
+            else:
+                p_cal = prob
+            ci_lo, ci_hi = wilson_ci(p_cal, n=50)
+
             rsi       = float(last.get("rsi_14", 50) or 50)
             vol_ratio = float(last.get("volume_ratio_5d", 1.0) or 1.0)
             acc_score = float(last.get("accumulation_score", 0.3) or 0.3)
@@ -189,6 +218,10 @@ def predict_today(
             raw_results.append({
                 "ticker":             ticker,
                 "probability":        round(prob, 4),
+                "p_calibrated":       round(p_cal, 4),
+                "ci_lo":              ci_lo,
+                "ci_hi":              ci_hi,
+                "recommendation":     _get_recommendation(p_cal).value,
                 "expected_return":    _estimate_return(prob),
                 "pattern":            _describe_pattern(acc_score, div_score, pp_score, spring_q, lps_det),
                 "confidence":         _confidence_label(prob),
@@ -401,3 +434,17 @@ def _confidence_label(prob: float) -> str:
         return "medium"
     else:
         return "low"
+
+
+def _get_recommendation(p_cal: float) -> Recommendation:
+    """Chuyển p_calibrated thành Recommendation enum."""
+    if p_cal >= 0.80:
+        return Recommendation.STRONG_BUY
+    elif p_cal >= 0.70:
+        return Recommendation.BUY
+    elif p_cal >= 0.60:
+        return Recommendation.WATCH
+    elif p_cal >= 0.50:
+        return Recommendation.HOLD
+    else:
+        return Recommendation.AVOID

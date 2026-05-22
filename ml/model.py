@@ -17,6 +17,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV  # noqa: F401 (kept for reference)
+from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import (
     classification_report,
     precision_score,
@@ -31,15 +33,16 @@ from .feature_engineering import FEATURE_COLS
 log = logging.getLogger(__name__)
 
 # ── Artifact paths ─────────────────────────────────────────────────────────────
-_ARTIFACTS_DIR = Path(__file__).parent / "artifacts"
-MODEL_PATH     = _ARTIFACTS_DIR / "alpha_model.pkl"
-SCALER_PATH    = _ARTIFACTS_DIR / "alpha_scaler.pkl"
-META_PATH      = _ARTIFACTS_DIR / "alpha_meta.pkl"
+_ARTIFACTS_DIR  = Path(__file__).parent / "artifacts"
+MODEL_PATH      = _ARTIFACTS_DIR / "alpha_model.pkl"
+SCALER_PATH     = _ARTIFACTS_DIR / "alpha_scaler.pkl"
+META_PATH       = _ARTIFACTS_DIR / "alpha_meta.pkl"
+CALIBRATOR_PATH = _ARTIFACTS_DIR / "alpha_calibrator.pkl"  # Isotonic calibrator (v5)
 
 # ── Model versioning ────────────────────────────────────────────────────────────
 # Tăng khi thay đổi: label definition, feature list, hoặc training schema.
 # Artifact có version khác → bị reject tự động trong load_model().
-MODEL_LABEL_VERSION = "v4_wyckoff"   # v4.0: +5 S1 Wyckoff VSA features (32 total)
+MODEL_LABEL_VERSION = "v5_calibrated"  # v5.0: +3 Wyckoff-derived features (35 total) + isotonic calibration
 
 
 # ── Model factory ──────────────────────────────────────────────────────────────
@@ -173,6 +176,25 @@ def train_model(dataset: pd.DataFrame, save: bool = True) -> dict:
     final_model = _make_model(pos_weight=pos_weight)
     final_model.fit(X_scaled, y)
 
+    # ── Isotonic Regression Calibration (v5.0, Sprint 6) ─────────────────────
+    # Calibrate trên 20% cuối (chronological holdout) — cv='prefit' vì
+    # final_model đã fit toàn bộ data trước rồi.
+    calibrator = None
+    cal_n = max(30, len(X_scaled) // 5)
+    X_cal_hold = X_scaled[-cal_n:]
+    y_cal_hold = y[-cal_n:]
+    if y_cal_hold.sum() >= 3 and (len(y_cal_hold) - y_cal_hold.sum()) >= 3:
+        try:
+            # Dùng IsotonicRegression trực tiếp (tương đương CalibratedClassifierCV isotonic).
+            # Map raw_prob → calibrated_prob trên holdout set.
+            raw_probs_hold = final_model.predict_proba(X_cal_hold)[:, 1]
+            calibrator = IsotonicRegression(out_of_bounds="clip")
+            calibrator.fit(raw_probs_hold, y_cal_hold)
+            log.info("Isotonic calibrator fitted on %d holdout samples", cal_n)
+        except Exception as exc:
+            log.warning("Calibration failed (non-critical): %s", exc)
+            calibrator = None
+
     # Feature importance
     feat_imp: dict[str, float] = {}
     if hasattr(final_model, "feature_importances_"):
@@ -184,22 +206,24 @@ def train_model(dataset: pd.DataFrame, save: bool = True) -> dict:
     prec_vals = [m["precision"] for m in fold_metrics]
 
     metrics = {
-        "trained_at":     datetime.now().isoformat(),
-        "n_samples":      int(len(X_raw)),
-        "n_tickers":      int(dataset["ticker"].nunique()) if "ticker" in dataset.columns else 0,
-        "pos_rate":       float(pos_rate),
-        "pos_weight":     float(pos_weight),
-        "cv_auc_mean":    float(np.mean(auc_vals)),
-        "cv_auc_std":     float(np.std(auc_vals)),
-        "cv_prec_mean":   float(np.mean(prec_vals)),
-        "fold_details":   fold_metrics,
-        "model_type":     type(final_model).__name__,
+        "trained_at":        datetime.now().isoformat(),
+        "n_samples":         int(len(X_raw)),
+        "n_tickers":         int(dataset["ticker"].nunique()) if "ticker" in dataset.columns else 0,
+        "pos_rate":          float(pos_rate),
+        "pos_weight":        float(pos_weight),
+        "cv_auc_mean":       float(np.mean(auc_vals)),
+        "cv_auc_std":        float(np.std(auc_vals)),
+        "cv_prec_mean":      float(np.mean(prec_vals)),
+        "fold_details":      fold_metrics,
+        "model_type":        type(final_model).__name__,
+        "calibrated":        calibrator is not None,
+        "cal_n_samples":     int(cal_n),
         "feature_importance": feat_imp,
         # ── Compatibility signature ────────────────────────────────────────────
         # Dùng để phát hiện model stale khi FEATURE_COLS hoặc label thay đổi.
-        "feature_cols":   list(FEATURE_COLS),          # snapshot tại thời điểm train
-        "n_features":     len(FEATURE_COLS),
-        "label_version":  MODEL_LABEL_VERSION,          # schema label
+        "feature_cols":      list(FEATURE_COLS),
+        "n_features":        len(FEATURE_COLS),
+        "label_version":     MODEL_LABEL_VERSION,
     }
 
     if save:
@@ -209,6 +233,10 @@ def train_model(dataset: pd.DataFrame, save: bool = True) -> dict:
             pickle.dump(scaler, f, protocol=5)
         with open(META_PATH, "wb") as f:
             pickle.dump(metrics, f, protocol=5)
+        if calibrator is not None:
+            with open(CALIBRATOR_PATH, "wb") as f:
+                pickle.dump(calibrator, f, protocol=5)
+            log.info("Calibrator saved → %s", CALIBRATOR_PATH)
         log.info("Model saved → %s", MODEL_PATH)
 
     return {
@@ -216,6 +244,7 @@ def train_model(dataset: pd.DataFrame, save: bool = True) -> dict:
         "scaler":             scaler,
         "metrics":            metrics,
         "feature_importance": feat_imp,
+        "calibrator":         calibrator,
     }
 
 
@@ -300,3 +329,44 @@ def model_exists() -> bool:
     """True nếu artifact tồn tại VÀ tương thích với FEATURE_COLS + label hiện tại."""
     compatible, _ = is_model_compatible()
     return compatible
+
+
+def load_calibrator():
+    """
+    Load isotonic calibrator nếu đã train (Sprint 6).
+
+    Returns
+    -------
+    CalibratedClassifierCV instance hoặc None nếu chưa có.
+    """
+    if not CALIBRATOR_PATH.exists():
+        return None
+    try:
+        with open(CALIBRATOR_PATH, "rb") as f:
+            return pickle.load(f)
+    except Exception as exc:
+        log.warning("Không load được calibrator: %s", exc)
+        return None
+
+
+def wilson_ci(p: float, n: int = 50, z: float = 1.645) -> tuple[float, float]:
+    """
+    90% Wilson score confidence interval cho xác suất p.
+
+    Parameters
+    ----------
+    p : Calibrated probability [0, 1].
+    n : Effective sample size (default 50 = tiêu biểu cho time-series CV fold).
+    z : Z-score (1.645 = 90%, 1.96 = 95%).
+
+    Returns
+    -------
+    (ci_lo, ci_hi) — both clipped to [0, 1].
+    """
+    if n <= 0:
+        half = min(0.15, p, 1 - p)
+        return (round(max(0.0, p - half), 4), round(min(1.0, p + half), 4))
+    denom  = 1.0 + z * z / n
+    center = (p + z * z / (2 * n)) / denom
+    margin = (z / denom) * float(np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)))
+    return (round(max(0.0, center - margin), 4), round(min(1.0, center + margin), 4))

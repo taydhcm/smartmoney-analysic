@@ -19,6 +19,7 @@ log = get_logger(__name__)
 # v2.0: Thêm 3 regime features từ S3 Market Regime Engine (adx_vn30, vn30_di_diff, regime_score)
 # v3.0: Thêm 3 smart money features từ S4 D0.2 SQLite logger (foreign_net_pct, foreign_trend, smart_money_score)
 # v5.0: Thêm 5 Wyckoff VSA features từ S1 engine v2.0 (Sprint 5) — accumulation_score nay dùng wyckoff_score
+# v6.0: Thêm 3 Wyckoff derived features (Sprint 6) — wyckoff_phase_score, phase_duration_norm, vol_profile_score (35 total)
 FEATURE_COLS: list[str] = [
     # Return
     "return_1d",
@@ -64,6 +65,10 @@ FEATURE_COLS: list[str] = [
     "effort_vs_result",   # Effort (vol) vs Result (price) [-1, +1]
     "no_supply_count",    # Tỷ lệ no-supply bars trong 10 phiên [0, 1]
     "stopping_volume",    # Stopping Volume / Selling Climax [0/1]
+    # Wyckoff phase derived features (v6.0, Sprint 6) — 3 thêm để đạt 35 features
+    "wyckoff_phase_score",  # phase encode: phase_d=1.0, phase_c=0.75, phase_b=0.55, none=0.30, dist=0.0
+    "phase_duration_norm",  # phase_duration / 30.0, clipped [0, 1]
+    "vol_profile_score",    # volume profile: expanding=1.0, climax=0.8, neutral=0.5, contracting=0.2
 ]
 
 
@@ -135,6 +140,22 @@ def _rolling_wyckoff(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
       accumulation_score, spring_quality, lps_detected,
       effort_vs_result, no_supply_count, stopping_volume
     """
+    # Phase → numeric score lookup (v6.0)
+    _PHASE_SCORE = {
+        "phase_d":      1.00,
+        "phase_c":      0.75,
+        "phase_b":      0.55,
+        "none":         0.30,
+        "distribution": 0.00,
+    }
+    # Volume profile → numeric lookup (v6.0)
+    _VOL_PROFILE_SCORE = {
+        "expanding":    1.00,
+        "climax":       0.80,
+        "neutral":      0.50,
+        "contracting":  0.20,
+    }
+
     cols = [
         "accumulation_score",  # = wyckoff_score
         "spring_quality",
@@ -142,6 +163,9 @@ def _rolling_wyckoff(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
         "effort_vs_result",
         "no_supply_count",
         "stopping_volume",
+        "wyckoff_phase_score",
+        "phase_duration_norm",
+        "vol_profile_score",
     ]
     rows: list[dict] = []
     for i in range(len(df)):
@@ -151,13 +175,17 @@ def _rolling_wyckoff(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
             win_df = df.iloc[i - window + 1 : i + 1].copy()
             wr = detect_wyckoff(win_df)
             rows.append({
-                "accumulation_score": wr.wyckoff_score,
-                "spring_quality":     wr.spring_quality,
-                "lps_detected":       float(wr.lps_detected),
-                "effort_vs_result":   wr.effort_vs_result,
+                "accumulation_score":  wr.wyckoff_score,
+                "spring_quality":      wr.spring_quality,
+                "lps_detected":        float(wr.lps_detected),
+                "effort_vs_result":    wr.effort_vs_result,
                 # normalize no_supply_count [0,1]: 4 bars / 10-bar window = 40% threshold
-                "no_supply_count":    min(1.0, wr.no_supply_count / max(1, 4)),
-                "stopping_volume":    float(wr.stopping_volume),
+                "no_supply_count":     min(1.0, wr.no_supply_count / max(1, 4)),
+                "stopping_volume":     float(wr.stopping_volume),
+                # v6.0 Wyckoff derived features
+                "wyckoff_phase_score": _PHASE_SCORE.get(wr.phase, 0.30),
+                "phase_duration_norm": min(1.0, wr.phase_duration / 30.0),
+                "vol_profile_score":   _VOL_PROFILE_SCORE.get(wr.volume_profile, 0.50),
             })
     return pd.DataFrame(rows, index=df.index)
 
@@ -243,12 +271,15 @@ def compute_stock_features(
 
     # ── S1 Wyckoff VSA rolling signals (v5.0) ─────────────────────────────────
     _wyk = _rolling_wyckoff(df, window=20)
-    out["accumulation_score"] = _wyk["accumulation_score"]
-    out["spring_quality"]     = _wyk["spring_quality"]
-    out["lps_detected"]       = _wyk["lps_detected"]
-    out["effort_vs_result"]   = _wyk["effort_vs_result"]
-    out["no_supply_count"]    = _wyk["no_supply_count"]
-    out["stopping_volume"]    = _wyk["stopping_volume"]
+    out["accumulation_score"]  = _wyk["accumulation_score"]
+    out["spring_quality"]      = _wyk["spring_quality"]
+    out["lps_detected"]        = _wyk["lps_detected"]
+    out["effort_vs_result"]    = _wyk["effort_vs_result"]
+    out["no_supply_count"]     = _wyk["no_supply_count"]
+    out["stopping_volume"]     = _wyk["stopping_volume"]
+    out["wyckoff_phase_score"] = _wyk["wyckoff_phase_score"]
+    out["phase_duration_norm"] = _wyk["phase_duration_norm"]
+    out["vol_profile_score"]   = _wyk["vol_profile_score"]
 
     # ── Market / VN30 features ─────────────────────────────────────────────────
     if vn30_df is not None and not vn30_df.empty:

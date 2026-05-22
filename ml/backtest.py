@@ -10,6 +10,8 @@ Flow:
   5. Ước tính return mỗi trade từ path_max_5d / path_min_5d thực tế
   6. Tính equity curve, Sharpe, drawdown, win rate, ...
 
+v2 (Sprint 6): Calibrated probability support + precision target reporting.
+
 Lưu ý: Đây là in-sample backtest. Để có kết quả unbiased, dùng walk-forward CV
 (train trên 70% earliest data, test trên 30% remaining). Xem comment bên dưới.
 """
@@ -34,34 +36,39 @@ POSITION_SIZE = 0.10    # 10% vốn mỗi trade (fixed, đơn giản hoá)
 class BacktestResult:
     """Kết quả backtest đầy đủ."""
     # ── Tổng quan ─────────────────────────────────────────────────────────────
-    total_signals:   int            # Số tín hiệu phát ra (P >= min_prob)
-    total_trades:    int            # Trades có đủ future data (label không NA)
-    win_rate:        float          # % trades đạt target (label=1)
-    avg_return_pct:  float          # Return trung bình mỗi trade (%)
-    avg_win_pct:     float          # Return trung bình khi thắng (%)
-    avg_loss_pct:    float          # Return trung bình khi thua (%)
-    precision:       float          # Precision (= win_rate cho binary)
+    total_signals:    int            # Số tín hiệu phát ra (P >= min_prob)
+    total_trades:     int            # Trades có đủ future data (label không NA)
+    win_rate:         float          # % trades đạt target (label=1)
+    avg_return_pct:   float          # Return trung bình mỗi trade (%)
+    avg_win_pct:      float          # Return trung bình khi thắng (%)
+    avg_loss_pct:     float          # Return trung bình khi thua (%)
+    precision:        float          # Precision (= win_rate cho binary)
+    precision_target: float          # Target precision (default 0.35, Sprint 6)
+    meets_target:     bool           # precision >= precision_target (Sprint 6)
     # ── Risk metrics ──────────────────────────────────────────────────────────
-    max_drawdown_pct: float         # Max drawdown equity curve (%)
-    sharpe:           float         # Annualized Sharpe (simplified)
-    calmar:           float         # Annualized return / Max drawdown
+    max_drawdown_pct: float          # Max drawdown equity curve (%)
+    sharpe:           float          # Annualized Sharpe (simplified)
+    calmar:           float          # Annualized return / Max drawdown
     # ── Chi tiết ──────────────────────────────────────────────────────────────
-    trades_df:        pd.DataFrame  # Trade log: date, ticker, p_alpha, label, return
-    equity_curve:     pd.Series     # Equity curve theo ngày (normalized)
-    by_ticker:        pd.DataFrame  # Win rate + avg return theo ticker
-    by_confidence:    dict          # Breakdown theo confidence level (high/medium/low)
+    trades_df:        pd.DataFrame   # Trade log: date, ticker, p_alpha, label, return
+    equity_curve:     pd.Series      # Equity curve theo ngày (normalized)
+    by_ticker:        pd.DataFrame   # Win rate + avg return theo ticker
+    by_confidence:    dict           # Breakdown theo confidence level (high/medium/low)
     note:             str = "In-sample — có overfitting bias. Dùng walk-forward CV để đánh giá thực."
 
     def summary(self) -> dict:
         return {
-            "total_trades":  self.total_trades,
-            "win_rate":      f"{self.win_rate:.1%}",
-            "avg_return":    f"{self.avg_return_pct:+.2f}%",
-            "avg_win":       f"{self.avg_win_pct:+.2f}%",
-            "avg_loss":      f"{self.avg_loss_pct:+.2f}%",
-            "max_drawdown":  f"{self.max_drawdown_pct:.2f}%",
-            "sharpe":        f"{self.sharpe:.2f}",
-            "calmar":        f"{self.calmar:.2f}",
+            "total_trades":    self.total_trades,
+            "win_rate":        f"{self.win_rate:.1%}",
+            "precision":       f"{self.precision:.3f}",
+            "precision_target": f"{self.precision_target:.2f}",
+            "meets_target":    self.meets_target,
+            "avg_return":      f"{self.avg_return_pct:+.2f}%",
+            "avg_win":         f"{self.avg_win_pct:+.2f}%",
+            "avg_loss":        f"{self.avg_loss_pct:+.2f}%",
+            "max_drawdown":    f"{self.max_drawdown_pct:.2f}%",
+            "sharpe":          f"{self.sharpe:.2f}",
+            "calmar":          f"{self.calmar:.2f}",
         }
 
 
@@ -71,8 +78,10 @@ def run_backtest(
     scaler,
     feature_cols:         list[str],
     min_prob:             float = 0.65,
-    initial_equity:       float = 100.0,   # normalized (100 = 100%)
+    initial_equity:       float = 100.0,
     position_size_pct:    float = POSITION_SIZE,
+    precision_target:     float = 0.35,          # Sprint 6: target precision
+    calibrator=None,                              # Sprint 6: isotonic calibrator (optional)
 ) -> BacktestResult:
     """
     Chạy in-sample backtest trên dataset lịch sử.
@@ -86,11 +95,17 @@ def run_backtest(
     min_prob         : Ngưỡng signal (P >= min_prob → vào lệnh).
     initial_equity   : Vốn khởi đầu (normalized, e.g. 100 = 100 đơn vị).
     position_size_pct: % vốn mỗi trade.
+    precision_target : Target precision để đánh giá meets_target (Sprint 6, default 0.35).
+    calibrator       : Isotonic calibrator (Sprint 6). Nếu có, dùng p_calibrated cho signal.
 
     Returns
     -------
     BacktestResult
     """
+    # ── Early exit on empty input ─────────────────────────────────────────────
+    if dataset is None or dataset.empty:
+        return _empty_result("Dataset rỗng")
+
     # ── Validate ─────────────────────────────────────────────────────────────
     required_cols = set(feature_cols) | {"path_max_5d", "path_min_5d", "label", "ticker", "date"}
     missing = required_cols - set(dataset.columns)
@@ -118,14 +133,25 @@ def run_backtest(
         log.error("Backtest predict_proba loi: %s", exc)
         raise
 
-    df["p_alpha"]   = probs
-    df["confidence"] = pd.cut(
-        probs,
+    # Sprint 6: dùng calibrated probs nếu có calibrator
+    if calibrator is not None:
+        try:
+            raw_probs = model.predict_proba(X_scaled)[:, 1]
+            probs_cal = np.clip(calibrator.predict(raw_probs), 0.0, 1.0)
+        except Exception:
+            probs_cal = probs
+    else:
+        probs_cal = probs
+
+    df["p_alpha"]     = probs
+    df["p_calibrated"] = probs_cal
+    df["confidence"]  = pd.cut(
+        probs_cal,
         bins=[0, 0.70, 0.80, 1.0],
         labels=["low", "medium", "high"],
         right=True,
     ).astype(str)
-    df["signal"]    = probs >= min_prob
+    df["signal"]      = probs_cal >= min_prob
 
     # ── Loc lay trades (signal=True) ─────────────────────────────────────────
     signals_df = df[df["signal"]].copy()
@@ -223,11 +249,12 @@ def run_backtest(
 
     # ── Trade log ────────────────────────────────────────────────────────────
     trades_out = signals_df[[
-        "date", "ticker", "p_alpha", "confidence",
+        "date", "ticker", "p_alpha", "p_calibrated", "confidence",
         "label", "trade_return", "path_max_5d", "path_min_5d",
     ]].copy()
     trades_out["trade_return_pct"] = (trades_out["trade_return"] * 100).round(2)
     trades_out["p_alpha"]          = trades_out["p_alpha"].round(4)
+    trades_out["p_calibrated"]     = trades_out["p_calibrated"].round(4)
     trades_out = trades_out.drop(columns=["trade_return"])
 
     return BacktestResult(
@@ -238,6 +265,8 @@ def run_backtest(
         avg_win_pct=round(avg_win * 100, 3),
         avg_loss_pct=round(avg_loss * 100, 3),
         precision=round(win_rate, 4),
+        precision_target=float(precision_target),
+        meets_target=bool(win_rate >= precision_target),
         max_drawdown_pct=round(max_dd, 3),
         sharpe=round(sharpe, 3),
         calmar=round(calmar, 3),
@@ -253,7 +282,8 @@ def _empty_result(note: str = "") -> BacktestResult:
     return BacktestResult(
         total_signals=0, total_trades=0, win_rate=0.0,
         avg_return_pct=0.0, avg_win_pct=0.0, avg_loss_pct=0.0,
-        precision=0.0, max_drawdown_pct=0.0, sharpe=0.0, calmar=0.0,
+        precision=0.0, precision_target=0.35, meets_target=False,
+        max_drawdown_pct=0.0, sharpe=0.0, calmar=0.0,
         trades_df=pd.DataFrame(),
         equity_curve=pd.Series(dtype=float),
         by_ticker=pd.DataFrame(),
