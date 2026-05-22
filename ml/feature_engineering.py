@@ -15,6 +15,7 @@ from utils.logger import get_logger
 log = get_logger(__name__)
 
 # ─── Canonical feature list (train + predict dùng cùng thứ tự) ────────────────
+# v2.0: Thêm 3 regime features từ S3 Market Regime Engine (adx_vn30, vn30_di_diff, regime_score)
 FEATURE_COLS: list[str] = [
     # Return
     "return_1d",
@@ -45,6 +46,10 @@ FEATURE_COLS: list[str] = [
     # Derivatives proxy
     "basis_zscore",
     "basis_extreme_flag",
+    # S3 Market Regime features (v2.0)
+    "adx_vn30",       # ADX(14) của VN30, normalized [0,1] — sức mạnh trend thị trường
+    "vn30_di_diff",   # (DI+ - DI-)/100 — dương = bull trend, âm = bear trend
+    "regime_score",   # Raw score [-4, +4] — tổng hợp tất cả regime signals
 ]
 
 
@@ -227,20 +232,50 @@ def compute_stock_features(
         raw_zscore = (rel - mu) / (sigma + 1e-9)
         out["basis_zscore"]       = raw_zscore.replace([np.inf, -np.inf], 0.0).clip(-4.0, 4.0)
         out["basis_extreme_flag"] = (out["basis_zscore"].abs() > 2.0).astype(float)
-    else:
-        out["vn30_ret_1d"]       = 0.0
-        out["relative_strength"] = out["return_1d"]
-        out["vn30_vs_20sma"]     = 0.0
-        out["basis_zscore"]      = 0.0
-        out["basis_extreme_flag"] = 0.0
 
-    # ── Label: T+2 return >= 5% ────────────────────────────────────────────────
-    # forward_return_2d = (close[t+2] - close[t]) / close[t]
-    # shift(-2) → row t gets T+2 value (no look-ahead when label is dropped for last 2 rows)
-    out["forward_return_2d"] = close.pct_change(2).shift(-2)
-    out["label"]             = (out["forward_return_2d"] >= 0.05).astype("Int8")
-    # Last 2 rows have no future close → label is NA (correct for prediction)
-    out.loc[out.index[-2:], "label"] = pd.NA
+        # ── S3 Regime features (v2.0) ─────────────────────────────────────────
+        # Tính từ VN30 series — không look-ahead vì chỉ dùng data đến ngày T
+        from .regime import compute_regime_series
+        regime_ser = compute_regime_series(vn30)
+        if not regime_ser.empty:
+            reg_indexed = regime_ser.set_index("date")
+            out["adx_vn30"]      = reg_indexed["adx_vn30"].reindex(df["date"], method="ffill").values
+            out["vn30_di_diff"]  = reg_indexed["vn30_di_diff"].reindex(df["date"], method="ffill").values
+            out["regime_score"]  = reg_indexed["regime_score"].reindex(df["date"], method="ffill").values
+        else:
+            out["adx_vn30"]     = 0.0
+            out["vn30_di_diff"]  = 0.0
+            out["regime_score"]  = 0.0
+    else:
+        out["vn30_ret_1d"]        = 0.0
+        out["relative_strength"]  = out["return_1d"]
+        out["vn30_vs_20sma"]      = 0.0
+        out["basis_zscore"]       = 0.0
+        out["basis_extreme_flag"] = 0.0
+        out["adx_vn30"]           = 0.0
+        out["vn30_di_diff"]       = 0.0
+        out["regime_score"]       = 0.0
+
+    # ── M2 Label: Path-dependent (v2.0) ───────────────────────────────────────
+    # y=1 khi: max(close[T+1..T+5])/close[T] >= 1.05  (đạt target +5%)
+    #      VÀ: min(close[T+1..T+5])/close[T] >= 0.95  (không bị quét SL -5%)
+    # Phản ánh đúng trading goal: hold tối đa 5 phiên, SL cứng -5%
+    future_closes = pd.concat(
+        [close.shift(-k) for k in range(1, 6)], axis=1
+    )
+    path_max = future_closes.max(axis=1) / (close + 1e-9) - 1   # max gain trong 5 phiên
+    path_min = future_closes.min(axis=1) / (close + 1e-9) - 1   # max drawdown trong 5 phiên
+
+    out["path_max_5d"]       = path_max   # auxiliary: upside tiềm năng
+    out["path_min_5d"]       = path_min   # auxiliary: downside risk
+    out["sl_hit"]            = (path_min <= -0.05).astype("Int8")  # SL bị quét
+    out["forward_return_2d"] = close.pct_change(2).shift(-2)        # backward compat
+
+    # Label chính: đạt target VÀ không chạm SL
+    label_raw = ((path_max >= 0.05) & (path_min > -0.05))
+    out["label"] = label_raw.astype("Int8")
+    # 5 rows cuối không có đủ future data → label = NA
+    out.loc[out.index[-5:], ["label", "sl_hit", "path_max_5d", "path_min_5d"]] = pd.NA
 
     # ── Drop rows with too many missing features ───────────────────────────────
     required = ["return_1d", "rsi_14", "atr_norm"]

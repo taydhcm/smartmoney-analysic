@@ -23,7 +23,8 @@ import streamlit as st
 from config.constants import VN30_TICKERS, SECTOR_MAP
 from ml.dataset_builder import build_dataset
 from ml.model import model_exists, train_model
-from ml.predictor import get_feature_importance, predict_all, predict_today
+from ml.predictor import get_current_regime, get_feature_importance, predict_all, predict_today
+from ml.regime import RegimeState
 
 st.set_page_config(page_title="Alpha Signals", layout="wide")
 
@@ -59,7 +60,18 @@ with st.sidebar:
     st.divider()
     st.caption("**Tickers:** VN30 (30 mã)")
     st.caption("**Model:** LightGBM → XGBoost → RF")
-    st.caption("**Label:** return T+2 ≥ +5%")
+    st.caption("**Label:** Path-dependent (target +5%, SL -5%, T+5)")
+
+    st.divider()
+    # ── Regime Gate toggle ─────────────────────────────────────────────
+    enable_regime_gate = st.checkbox(
+        "🌍 Bật Regime Gate (D3.1)",
+        value=True,
+        help=(
+            "Khi bật: BEAR → không vào lệnh long, các state khác tự động "
+            "nâng ngưỡng P_min theo regime thị trường."
+        ),
+    )
 
     # ── Rate limit mode badge ──────────────────────────────────────────
     st.divider()
@@ -83,7 +95,7 @@ _eta_predict = _limiter.eta_seconds(_n_tickers) if _throttled else 0
 
 st.title("🎯 Alpha Signal System")
 st.caption(
-    "Dự đoán xác suất đạt **>5% return trong T+2** dựa trên ML (Gradient Boosting). "
+    "Dự đoán xác suất đạt **+5% trong 5 phiên không chạm SL -5%** dựa trên ML (Gradient Boosting). "
     f"Cập nhật: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
 )
 
@@ -97,7 +109,64 @@ if _throttled:
         icon="⚠️",
     )
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ── S3 Market Regime Banner ────────────────────────────────────────────────────
+_REGIME_COLORS = {
+    RegimeState.BULL:      "green",
+    RegimeState.BULL_WEAK: "orange",
+    RegimeState.NEUTRAL:   "blue",
+    RegimeState.BEAR_WEAK: "orange",
+    RegimeState.BEAR:      "red",
+}
+_REGIME_ICONS = {
+    RegimeState.BULL:      "🟢",
+    RegimeState.BULL_WEAK: "🟡",
+    RegimeState.NEUTRAL:   "⚪",
+    RegimeState.BEAR_WEAK: "🟠",
+    RegimeState.BEAR:      "🔴",
+}
+
+with st.expander("🌍 Market Regime (S3)", expanded=True):
+    _regime_cols = st.columns([2, 1, 1, 1, 2])
+    with st.spinner("Đang xác định regime thị trường..."):
+        try:
+            _regime = get_current_regime(period="3m")
+            _ri = _regime.as_dict()
+            _icon = _REGIME_ICONS[_regime.state]
+            _color = _REGIME_COLORS[_regime.state]
+        except Exception as _e:
+            _regime = None
+            _ri = {}
+            _icon = "⚪"
+            _color = "blue"
+
+    if _regime is not None:
+        with _regime_cols[0]:
+            _regime_msg = f"{_icon} **{_ri['regime']}** — {_ri['regime_label']}"
+            if _regime.state == RegimeState.BEAR:
+                st.error(_regime_msg + "\n\n🚫 Tắt toàn bộ long signal hôm nay!")
+            elif _regime.state == RegimeState.BULL:
+                st.success(_regime_msg)
+            elif _regime.state == RegimeState.BEAR_WEAK:
+                st.warning(_regime_msg)
+            else:
+                st.info(_regime_msg)
+        with _regime_cols[1]:
+            st.metric(
+                "VN30 vs SMA20",
+                f"{_ri['vn30_vs_sma20']:+.2f}%",
+                delta=None,
+            )
+        with _regime_cols[2]:
+            st.metric("ADX(14)", f"{_ri['adx']:.1f}")
+        with _regime_cols[3]:
+            st.metric("P_min gate", f"{_ri['min_prob']:.2f}")
+        with _regime_cols[4]:
+            st.caption(
+                f"**DI+** {_ri['di_plus']:.1f} · **DI-** {_ri['di_minus']:.1f} · "
+                f"Max vị thế: **{_ri['max_positions']}** · "
+                f"Confirmed: **{_ri['confirmed_days']}** phiên\n\n"
+                f"_{_ri['reason']}_"
+            )
 # SECTION 1 — Model Status
 # ─────────────────────────────────────────────────────────────────────────────
 st.header("📦 Trạng Thái Model")
@@ -277,6 +346,7 @@ if do_predict or "alpha_picks" in st.session_state:
                     min_probability=min_prob,
                     max_rsi=float(max_rsi),
                     progress_callback=_pred_update,
+                    enable_regime_gate=enable_regime_gate,
                 )
                 st.session_state["alpha_picks"] = _picks
                 st.session_state["alpha_min_prob"] = min_prob

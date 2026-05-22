@@ -1,11 +1,12 @@
 """
 ml/__init__.py
-Alpha Signal ML package.
+Alpha Signal ML package — v2.0
 """
 
 from .feature_engineering import FEATURE_COLS, compute_stock_features
 from .model import load_model, model_exists, train_model
-from .predictor import get_feature_importance, predict_all, predict_today
+from .predictor import get_current_regime, get_feature_importance, predict_all, predict_today
+from .regime import RegimeInfo, RegimeState, get_market_regime
 
 __all__ = [
     "FEATURE_COLS",
@@ -16,4 +17,8 @@ __all__ = [
     "predict_today",
     "predict_all",
     "get_feature_importance",
+    "get_current_regime",
+    "get_market_regime",
+    "RegimeState",
+    "RegimeInfo",
 ]

@@ -16,8 +16,12 @@ from .feature_engineering import compute_stock_features, FEATURE_COLS
 
 log = logging.getLogger(__name__)
 
-# Cột output của dataset (không gồm label/forward_return để control rõ ràng)
-DATASET_COLS = ["ticker", "date"] + FEATURE_COLS + ["forward_return_2d", "label"]
+# Cột output của dataset — v2.0: thêm M2 path-dependent label columns
+DATASET_COLS = (
+    ["ticker", "date"]
+    + FEATURE_COLS
+    + ["forward_return_2d", "path_max_5d", "path_min_5d", "sl_hit", "label"]
+)
 
 
 def build_dataset(
@@ -67,6 +71,9 @@ def build_dataset(
             # Chỉ giữ rows có label rõ ràng (không phải NA)
             labeled = feat_df.dropna(subset=["label"]).copy()
             labeled["label"] = labeled["label"].astype(int)
+            # sl_hit có thể NA ở cuối — fill 0 sau khi đã drop label-NA rows
+            if "sl_hit" in labeled.columns:
+                labeled["sl_hit"] = labeled["sl_hit"].fillna(0).astype(int)
             labeled.insert(0, "ticker", ticker)
 
             # Giữ đúng các cột cần thiết

@@ -1,6 +1,11 @@
 """
 ml/predictor.py
-Prediction pipeline: tính P_alpha = P(return_T+2 >= 5%) cho tất cả tickers.
+Prediction pipeline: tính P_alpha = P(đạt target +5% trong T+5 không chạm SL -5%).
+
+v2.0: Tích hợp D3.1 Regime Gate:
+  - BEAR  → block toàn bộ long signal, trả về []
+  - Các state khác → tự động nâng min_probability theo regime
+  - Mỗi pick có thêm trường 'regime' với đầy đủ context
 """
 
 from __future__ import annotations
@@ -15,12 +20,13 @@ from config.constants import VN30_TICKERS
 from data.market_data import get_ohlcv, get_index_data
 from .feature_engineering import compute_stock_features, FEATURE_COLS
 from .model import load_model
+from .regime import RegimeInfo, RegimeState, get_market_regime
 
 log = logging.getLogger(__name__)
 
-# Threshold mặc định để chọn alpha picks
-DEFAULT_MIN_PROB   = 0.65
-DEFAULT_MAX_RSI    = 80.0   # loại cổ phiếu overbought rõ ràng
+# Threshold mặc định (có thể bị override bởi Regime Gate)
+DEFAULT_MIN_PROB = 0.65
+DEFAULT_MAX_RSI  = 80.0   # loại cổ phiếu overbought rõ ràng
 
 
 def predict_today(
@@ -29,21 +35,26 @@ def predict_today(
     min_probability: float = DEFAULT_MIN_PROB,
     max_rsi: float = DEFAULT_MAX_RSI,
     progress_callback: Callable[[float, str], None] | None = None,
+    enable_regime_gate: bool = True,
 ) -> list[dict]:
     """
-    Dự đoán xác suất đạt >5% return trong T+2 cho tất cả tickers hôm nay.
+    Dự đoán xác suất đạt target (+5%, không chạm SL -5%) trong 5 phiên cho tất cả tickers.
 
     Parameters
     ----------
-    tickers           : Danh sách mã. Mặc định = VN30_TICKERS.
-    period            : Kỳ lấy OHLCV ("3m" đủ cho feature computation).
-    min_probability   : Ngưỡng tối thiểu để xuất hiện trong alpha picks.
-    max_rsi           : Loại cổ phiếu có RSI > threshold (overbought).
-    progress_callback : fn(pct, msg) để cập nhật UI.
+    tickers            : Danh sách mã. Mặc định = VN30_TICKERS.
+    period             : Kỳ lấy OHLCV ("3m" đủ cho feature computation).
+    min_probability    : Ngưỡng P tối thiểu (có thể bị nâng bởi regime gate).
+    max_rsi            : Loại cổ phiếu có RSI > threshold (overbought).
+    progress_callback  : fn(pct, msg) để cập nhật UI.
+    enable_regime_gate : True → D3.1 gate tự động adjust threshold.
+                         False → bỏ qua regime (dùng cho analysis/debug).
 
     Returns
     -------
-    list[dict] sorted by probability giảm dần, chỉ gồm picks >= min_probability.
+    list[dict] sorted by probability giảm dần.
+    Trả về [] khi regime = BEAR (enable_regime_gate=True).
+    Mỗi dict có trường 'regime' chứa đầy đủ context từ S3.
     """
     if tickers is None:
         tickers = VN30_TICKERS
@@ -56,9 +67,35 @@ def predict_today(
     model, scaler, _meta = loaded
 
     if progress_callback:
-        progress_callback(0.0, "Đang tải VN30 index...")
+        progress_callback(0.0, "Đang tải VN30 + xác định Market Regime...")
     vn30_df = get_index_data("VN30", period=period)
 
+    # ── D3.1 Regime Gate ─────────────────────────────────────────────────────
+    regime: RegimeInfo = get_market_regime(vn30_df)
+
+    if enable_regime_gate:
+        effective_min_prob = max(min_probability, regime.min_prob)
+
+        if not regime.is_tradeable:
+            log.warning(
+                "[REGIME GATE] State=%s → TẮT toàn bộ long signal. %s",
+                regime.state.value, regime.reason,
+            )
+            if progress_callback:
+                progress_callback(1.0, f"🔴 Regime {regime.state.value}: không vào lệnh long.")
+            return []
+
+        if effective_min_prob > min_probability:
+            log.info(
+                "[REGIME GATE] State=%s → nâng P_min %.2f → %.2f",
+                regime.state.value, min_probability, effective_min_prob,
+            )
+    else:
+        effective_min_prob = min_probability
+
+    regime_dict = regime.as_dict()
+
+    # ── Prediction loop ───────────────────────────────────────────────────────
     results: list[dict] = []
     total = len(tickers)
 
@@ -84,16 +121,16 @@ def predict_today(
             )
             raw_vals = np.nan_to_num(raw_vals, nan=0.0, posinf=3.0, neginf=-3.0)
 
-            X      = scaler.transform(raw_vals.reshape(1, -1))
-            prob   = float(model.predict_proba(X)[0, 1])
+            X    = scaler.transform(raw_vals.reshape(1, -1))
+            prob = float(model.predict_proba(X)[0, 1])
 
-            rsi        = float(last.get("rsi_14", 50) or 50)
-            vol_ratio  = float(last.get("volume_ratio_5d", 1.0) or 1.0)
-            acc_score  = float(last.get("accumulation_score", 0.3) or 0.3)
-            div_score  = float(last.get("divergence_score", 0.0) or 0.0)
-            pp_score   = float(last.get("pull_push_score", 0.0) or 0.0)
-            rel_str    = float(last.get("relative_strength", 0.0) or 0.0)
-            ret_1d     = float(last.get("return_1d", 0.0) or 0.0)
+            rsi       = float(last.get("rsi_14", 50) or 50)
+            vol_ratio = float(last.get("volume_ratio_5d", 1.0) or 1.0)
+            acc_score = float(last.get("accumulation_score", 0.3) or 0.3)
+            div_score = float(last.get("divergence_score", 0.0) or 0.0)
+            pp_score  = float(last.get("pull_push_score", 0.0) or 0.0)
+            rel_str   = float(last.get("relative_strength", 0.0) or 0.0)
+            ret_1d    = float(last.get("return_1d", 0.0) or 0.0)
 
             # Loại overbought (RSI > threshold)
             if rsi > max_rsi:
@@ -113,6 +150,7 @@ def predict_today(
                 "accumulation_score": round(acc_score, 3),
                 "divergence_score":   round(div_score, 3),
                 "pull_push_score":    round(pp_score, 3),
+                "regime":             regime_dict,                 # D3.1 context
             })
 
         except Exception as exc:
@@ -121,13 +159,13 @@ def predict_today(
     if progress_callback:
         progress_callback(1.0, "Hoàn tất dự đoán.")
 
-    # Lọc theo threshold và sort
-    picks = [r for r in results if r["probability"] >= min_probability]
+    # Lọc theo effective threshold (đã điều chỉnh bởi regime) và sort
+    picks = [r for r in results if r["probability"] >= effective_min_prob]
     picks.sort(key=lambda x: x["probability"], reverse=True)
 
     log.info(
-        "Prediction: %d tickers → %d picks (min_prob=%.2f)",
-        len(results), len(picks), min_probability,
+        "Prediction: %d tickers → %d picks (min_prob=%.2f effective=%.2f regime=%s)",
+        len(results), len(picks), min_probability, effective_min_prob, regime.state.value,
     )
     return picks
 
@@ -139,22 +177,31 @@ def predict_all(
 ) -> pd.DataFrame:
     """
     Trả về full DataFrame với P_alpha cho TẤT CẢ tickers (không lọc threshold).
-    Dùng cho phân tích toàn thị trường.
+    Dùng cho phân tích toàn thị trường — regime gate bị tắt.
     """
     if tickers is None:
         tickers = VN30_TICKERS
 
-    # Gọi predict_today với threshold = 0 để lấy tất cả
     all_results = predict_today(
         tickers=tickers,
         period=period,
         min_probability=0.0,
         max_rsi=100.0,
         progress_callback=progress_callback,
+        enable_regime_gate=False,   # analysis mode: không block
     )
     if not all_results:
         return pd.DataFrame()
     return pd.DataFrame(all_results).sort_values("probability", ascending=False)
+
+
+def get_current_regime(period: str = "3m") -> RegimeInfo:
+    """
+    Trả về Market Regime hiện tại dựa trên VN30 OHLCV gần nhất.
+    Dùng để hiển thị trên UI mà không cần chạy toàn bộ prediction pipeline.
+    """
+    vn30_df = get_index_data("VN30", period=period)
+    return get_market_regime(vn30_df)
 
 
 def get_feature_importance() -> dict[str, float]:
