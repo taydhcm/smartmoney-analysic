@@ -1,942 +1,684 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Alpha Signal Roadmap → Thực Chiến</title>
-  <style>
-    :root {
-      --blue:    #2563eb;
-      --blue-lt: #dbeafe;
-      --yellow:  #d97706;
-      --yel-lt:  #fef3c7;
-      --red:     #dc2626;
-      --red-lt:  #fee2e2;
-      --green:   #16a34a;
-      --grn-lt:  #dcfce7;
-      --gray:    #374151;
-      --gray-lt: #f3f4f6;
-      --border:  #e5e7eb;
-      --shadow:  0 2px 8px rgba(0,0,0,.08);
-    }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Alpha Signal System — Kiến Trúc & Roadmap Thực Chiến</title>
+<style>
+:root{
+  --c0:#0f172a; --c1:#1e293b; --c2:#334155; --c3:#475569;
+  --blue:#3b82f6; --blue-d:#1d4ed8; --blue-lt:#dbeafe;
+  --cyan:#06b6d4; --cyan-lt:#cffafe;
+  --green:#22c55e; --green-d:#16a34a; --green-lt:#dcfce7;
+  --yellow:#f59e0b; --yellow-lt:#fef3c7;
+  --orange:#f97316; --orange-lt:#ffedd5;
+  --red:#ef4444; --red-lt:#fee2e2;
+  --purple:#a855f7; --purple-lt:#f3e8ff;
+  --border:#e2e8f0; --shadow:0 4px 16px rgba(0,0,0,.08);
+  --r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f1f5f9;color:#1e293b;line-height:1.6;font-size:14px}
+.page{max-width:1200px;margin:0 auto;padding:32px 20px 80px}
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+h2{font-size:1.3rem;font-weight:800}
+h3{font-size:1rem;font-weight:700}
+h4{font-size:.85rem;font-weight:700}
+code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2e8f0;padding:1px 5px;border-radius:3px}
 
-    body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      background: #f8fafc;
-      color: var(--gray);
-      line-height: 1.65;
-    }
+/* ── Hero ── */
+.hero{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 50%,#312e81 100%);border-radius:16px;padding:48px 40px;color:#fff;margin-bottom:28px;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-60px;top:-60px;width:300px;height:300px;border-radius:50%;background:rgba(59,130,246,.15);pointer-events:none}
+.hero h1{font-size:1.9rem;font-weight:900;line-height:1.2;position:relative}
+.hero h1 em{color:#38bdf8;font-style:normal}
+.hero .meta{margin-top:10px;font-size:.85rem;opacity:.65;position:relative}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;position:relative}
+.pill{padding:4px 14px;border-radius:20px;font-size:.76rem;font-weight:700;border:1px solid rgba(255,255,255,.3)}
 
-    /* ── Layout ───────────────────────────────────────────────────── */
-    .page { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+/* ── Section ── */
+.section{background:#fff;border-radius:var(--r);padding:26px 30px;margin-bottom:24px;box-shadow:var(--shadow)}
+.sec-title{display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid var(--border)}
+.sec-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
 
-    /* ── Hero ─────────────────────────────────────────────────────── */
-    .hero {
-      background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 60%, #7c3aed 100%);
-      border-radius: 16px;
-      padding: 48px 40px;
-      color: #fff;
-      margin-bottom: 36px;
-      position: relative;
-      overflow: hidden;
-    }
-    .hero::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Ccircle cx='30' cy='30' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    }
-    .hero h1 { font-size: 2rem; font-weight: 800; position: relative; }
-    .hero h1 span { color: #fbbf24; }
-    .hero .sub { margin-top: 12px; font-size: 1.05rem; opacity: .85; position: relative; }
-    .hero .goal-box {
-      margin-top: 24px;
-      background: rgba(255,255,255,.12);
-      border: 1px solid rgba(255,255,255,.2);
-      border-radius: 10px;
-      padding: 16px 20px;
-      position: relative;
-      font-size: .95rem;
-    }
-    .hero .goal-box strong { color: #fbbf24; }
+/* ── Architecture layers ── */
+.arch-layer{border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:12px}
+.layer-hdr{padding:10px 18px;font-weight:800;font-size:.82rem;letter-spacing:.05em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.layer-hdr span{font-weight:400;opacity:.7;font-size:.74rem;text-transform:none;letter-spacing:0}
+.layer-body{padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px}
 
-    /* ── Reframe section ──────────────────────────────────────────── */
-    .reframe {
-      background: #fff;
-      border-radius: 12px;
-      padding: 28px 32px;
-      margin-bottom: 32px;
-      box-shadow: var(--shadow);
-      border-left: 5px solid var(--blue);
-    }
-    .reframe h2 { font-size: 1.25rem; color: var(--blue); margin-bottom: 16px; }
+.mod{border-radius:8px;padding:10px 13px;min-width:155px;flex:1;border:1px solid transparent;transition:transform .15s,box-shadow .15s}
+.mod:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.mod .mid{font-size:.68rem;font-weight:800;opacity:.65;font-family:monospace;letter-spacing:.07em}
+.mod .mname{font-size:.84rem;font-weight:700;margin:2px 0}
+.mod .mdesc{font-size:.74rem;opacity:.75;line-height:1.35}
+.mod .mst{display:inline-block;font-size:.63rem;font-weight:700;padding:1px 7px;border-radius:10px;margin-top:5px;text-transform:uppercase;letter-spacing:.04em}
 
-    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-    thead th {
-      background: var(--blue);
-      color: #fff;
-      padding: 10px 14px;
-      text-align: left;
-      font-weight: 600;
-    }
-    tbody tr:nth-child(even) { background: var(--blue-lt); }
-    tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
-    tbody td:first-child { font-weight: 600; color: #dc2626; }
-    tbody td:last-child  { color: var(--green); font-weight: 600; }
+.l0 .layer-hdr{background:#0f172a;color:#38bdf8}
+.l1 .layer-hdr{background:#1e3a8a;color:#93c5fd}
+.l2 .layer-hdr{background:#14532d;color:#86efac}
+.l3 .layer-hdr{background:#7c2d12;color:#fdba74}
+.l4 .layer-hdr{background:#4a1d96;color:#d8b4fe}
 
-    /* ── Week blocks ──────────────────────────────────────────────── */
-    .week-block { margin-bottom: 40px; }
+.l0 .mod{background:#f0f9ff;border-color:#bae6fd;color:#0c4a6e}
+.l1 .mod{background:#eff6ff;border-color:#bfdbfe;color:#1e3a8a}
+.l2 .mod{background:#f0fdf4;border-color:#bbf7d0;color:#14532d}
+.l3 .mod{background:#fff7ed;border-color:#fed7aa;color:#7c2d12}
+.l4 .mod{background:#faf5ff;border-color:#e9d5ff;color:#4a1d96}
 
-    .week-header {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 18px 24px;
-      border-radius: 12px 12px 0 0;
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: #fff;
-    }
-    .week-header .badge {
-      font-size: .75rem;
-      font-weight: 600;
-      padding: 3px 10px;
-      border-radius: 20px;
-      background: rgba(255,255,255,.2);
-    }
-    .w1 .week-header { background: linear-gradient(90deg, #1d4ed8, #3b82f6); }
-    .w2 .week-header { background: linear-gradient(90deg, #b45309, #f59e0b); }
-    .w3 .week-header { background: linear-gradient(90deg, #b91c1c, #ef4444); }
+.st-done{background:#dcfce7;color:#166534}
+.st-key{background:#fce7f3;color:#9d174d}
+.st-wip{background:#fef3c7;color:#92400e}
+.st-todo{background:#f1f5f9;color:#475569}
 
-    .week-body {
-      background: #fff;
-      border: 1px solid var(--border);
-      border-top: none;
-      border-radius: 0 0 12px 12px;
-      box-shadow: var(--shadow);
-      overflow: hidden;
-    }
+.flow-arr{text-align:center;color:#94a3b8;font-size:1.1rem;margin:4px 0;user-select:none}
 
-    /* ── Day card ─────────────────────────────────────────────────── */
-    .day-card {
-      border-bottom: 1px solid var(--border);
-      padding: 24px 28px;
-    }
-    .day-card:last-child { border-bottom: none; }
+/* ── Module detail ── */
+.mod-detail{border-radius:var(--r);border:1px solid var(--border);overflow:hidden;margin-bottom:14px}
+.mdhdr{padding:11px 16px;display:flex;align-items:center;gap:11px}
+.mdhdr .mid2{font-family:monospace;font-weight:800;font-size:.76rem;padding:3px 8px;border-radius:5px;flex-shrink:0}
+.mdbody{padding:14px 16px;background:#fff}
 
-    .day-header {
-      display: flex;
-      align-items: flex-start;
-      gap: 16px;
-      margin-bottom: 14px;
-    }
-    .day-num {
-      flex-shrink: 0;
-      width: 48px; height: 48px;
-      border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 1rem; color: #fff;
-    }
-    .w1 .day-num { background: var(--blue); }
-    .w2 .day-num { background: var(--yellow); }
-    .w3 .day-num { background: var(--red); }
+.spec2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+@media(max-width:620px){.spec2{grid-template-columns:1fr}}
+.sbox{background:#f8fafc;border-radius:6px;padding:10px 12px;border:1px solid var(--border)}
+.sbox h4{font-size:.74rem;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-bottom:7px}
+.sbox ul{list-style:none}
+.sbox ul li{font-size:.8rem;padding:3px 0;display:flex;gap:6px;color:#374151;border-bottom:1px dashed #e5e7eb}
+.sbox ul li:last-child{border:none}
+.sbox ul li::before{content:'›';color:var(--blue);font-weight:700;flex-shrink:0}
 
-    .day-title h3 { font-size: 1.05rem; font-weight: 700; color: #111; }
-    .day-title .tag {
-      display: inline-block;
-      font-size: .72rem;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 4px;
-      margin-top: 4px;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-    }
-    .tag-critical { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
-    .tag-important { background: #fffbeb; color: #92400e; border: 1px solid #fcd34d; }
-    .tag-foundation { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
-    .tag-live { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
+.code-dark{background:#1e293b;color:#e2e8f0;border-radius:8px;padding:12px 16px;font-family:'Fira Code','Consolas',monospace;font-size:.77rem;line-height:1.7;overflow-x:auto;margin-top:8px}
+.cm{color:#64748b} .ck{color:#7dd3fc} .cs{color:#86efac} .cn{color:#fca5a5} .co{color:#fbbf24}
 
-    .day-body { padding-left: 64px; }
-    .day-body p { font-size: .92rem; color: #4b5563; margin-bottom: 10px; }
-    .day-body p strong { color: #111; }
+/* ── Decision flow ── */
+.dflow{display:flex;flex-wrap:wrap;gap:0;align-items:stretch;justify-content:center;margin:14px 0}
+.dfs{flex:1;min-width:120px;max-width:160px;display:flex;flex-direction:column;align-items:center}
+.dfb{width:100%;background:#fff;border:2px solid var(--border);border-radius:8px;padding:9px 10px;text-align:center;font-size:.75rem;font-weight:700;flex:1;display:flex;flex-direction:column;justify-content:center}
+.dfa{width:28px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:1rem;flex-shrink:0;align-self:center}
+.dfb.gate{border-color:var(--orange);background:#fff7ed;color:#7c2d12}
+.dfb.green{border-color:var(--green);background:#f0fdf4;color:#14532d}
+.dfb.purple{border-color:#a855f7;background:#faf5ff;color:#4a1d96}
+.dfb .dfs2{font-weight:400;font-size:.69rem;opacity:.8;margin-top:3px}
 
-    .problem-box {
-      background: #fff7ed;
-      border-left: 3px solid #f97316;
-      border-radius: 0 6px 6px 0;
-      padding: 10px 14px;
-      margin-bottom: 12px;
-      font-size: .88rem;
-      color: #7c2d12;
-    }
-    .problem-box strong { color: #ea580c; }
+/* ── Build timeline ── */
+.btline{position:relative;padding-left:34px}
+.btline::before{content:'';position:absolute;left:11px;top:0;bottom:0;width:2px;background:linear-gradient(to bottom,var(--blue),var(--green),var(--orange),var(--red),#a855f7)}
+.bstep{position:relative;margin-bottom:20px}
+.bdot{position:absolute;left:-29px;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.63rem;font-weight:800;color:#fff;top:3px}
+.db{background:var(--blue-d)} .dg{background:var(--green-d)} .do{background:var(--orange)} .dr{background:var(--red)} .dp{background:#7c3aed}
+.bcard{background:#fff;border:1px solid var(--border);border-radius:8px;padding:13px 15px}
+.bch{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.btag{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase}
+.bwk{font-size:.7rem;color:#64748b;margin-left:auto}
+.btit{font-weight:700;font-size:.88rem;margin-bottom:5px}
+.bbody{font-size:.81rem;color:#4b5563;line-height:1.5}
+.bmods{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.bmod{font-size:.68rem;padding:2px 8px;border-radius:12px;font-family:monospace;font-weight:700}
 
-    .solution-box {
-      background: #f0fdf4;
-      border-left: 3px solid #22c55e;
-      border-radius: 0 6px 6px 0;
-      padding: 10px 14px;
-      margin-bottom: 12px;
-      font-size: .88rem;
-      color: #14532d;
-    }
+/* ── Interface table ── */
+.itable{width:100%;border-collapse:collapse;font-size:.8rem}
+.itable th{background:var(--c1);color:#e2e8f0;padding:8px 12px;text-align:left}
+.itable td{padding:8px 12px;border:1px solid var(--border);vertical-align:top}
+.itable tr:nth-child(even) td{background:#f8fafc}
 
-    .code-block {
-      background: #1e293b;
-      color: #e2e8f0;
-      border-radius: 8px;
-      padding: 14px 18px;
-      font-family: 'Consolas', 'Fira Code', monospace;
-      font-size: .82rem;
-      margin: 10px 0 14px;
-      overflow-x: auto;
-      line-height: 1.7;
-    }
-    .code-block .comment { color: #64748b; }
-    .code-block .keyword { color: #7dd3fc; }
-    .code-block .string  { color: #86efac; }
-    .code-block .number  { color: #fca5a5; }
+/* ── KPI ── */
+.kpigrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.kpic{background:#f8fafc;border-radius:8px;padding:13px;border:1px solid var(--border);text-align:center}
+.kpiv{font-size:1.4rem;font-weight:900;line-height:1.1}
+.kpil{font-size:.73rem;color:#64748b;margin-top:3px}
+.kpim{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:10px;margin-top:5px;display:inline-block}
 
-    ul.feature-list {
-      list-style: none;
-      margin: 8px 0 12px;
-      padding: 0;
-    }
-    ul.feature-list li {
-      display: flex;
-      gap: 8px;
-      font-size: .89rem;
-      padding: 5px 0;
-      color: #374151;
-      border-bottom: 1px dashed #e5e7eb;
-    }
-    ul.feature-list li:last-child { border: none; }
-    ul.feature-list li::before { content: '→'; color: var(--blue); font-weight: 700; flex-shrink: 0; }
+/* ── Summary dark ── */
+.sdark{background:var(--c0);border-radius:var(--r);padding:28px;color:#e2e8f0;margin-top:24px}
+.sdark h2{color:#fff;margin-bottom:18px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.pcard{background:rgba(255,255,255,.07);border-radius:8px;padding:14px}
+.pnum{font-size:1.8rem;font-weight:900;opacity:.25;line-height:1}
+.ptit{font-weight:700;color:#f1f5f9;font-size:.88rem;margin-top:4px}
+.pdesc{font-size:.78rem;color:#94a3b8;margin-top:5px;line-height:1.5}
 
-    .expect-box {
-      background: var(--blue-lt);
-      border-radius: 6px;
-      padding: 10px 14px;
-      font-size: .87rem;
-      color: #1e40af;
-      margin-top: 8px;
-    }
-    .expect-box strong { color: #1d4ed8; }
+.wmark{text-align:center;margin-top:24px;font-size:.74rem;color:#94a3b8}
 
-    /* ── KPI table ────────────────────────────────────────────────── */
-    .kpi-table { width: 100%; border-collapse: collapse; font-size: .87rem; margin: 10px 0; }
-    .kpi-table th { background: #1e293b; color: #f1f5f9; padding: 8px 12px; text-align: left; }
-    .kpi-table td { padding: 8px 12px; border: 1px solid var(--border); }
-    .kpi-table tr:nth-child(even) td { background: #f8fafc; }
-    .kpi-table .ok  { color: #16a34a; font-weight: 700; }
-    .kpi-table .tgt { color: #1d4ed8; font-weight: 700; }
-
-    /* ── Checklist ────────────────────────────────────────────────── */
-    .checklist { list-style: none; margin: 10px 0; padding: 0; }
-    .checklist li {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-size: .88rem;
-      padding: 6px 0;
-      border-bottom: 1px dashed #e5e7eb;
-      color: #374151;
-    }
-    .checklist li:last-child { border: none; }
-    .checklist li .cb {
-      width: 18px; height: 18px;
-      border: 2px solid #9ca3af;
-      border-radius: 4px;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-
-    /* ── Summary ──────────────────────────────────────────────────── */
-    .summary {
-      background: #1e293b;
-      border-radius: 12px;
-      padding: 32px 36px;
-      margin-top: 40px;
-      color: #e2e8f0;
-    }
-    .summary h2 { font-size: 1.3rem; color: #fff; margin-bottom: 20px; font-weight: 700; }
-
-    .timeline {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-bottom: 28px;
-    }
-    @media (max-width: 640px) { .timeline { grid-template-columns: 1fr; } }
-
-    .timeline-col {
-      background: rgba(255,255,255,.07);
-      border-radius: 10px;
-      padding: 18px;
-    }
-    .timeline-col h3 {
-      font-size: .9rem;
-      font-weight: 700;
-      margin-bottom: 10px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255,255,255,.15);
-    }
-    .tc-blue  h3 { color: #7dd3fc; }
-    .tc-yellow h3 { color: #fcd34d; }
-    .tc-red   h3 { color: #fca5a5; }
-
-    .timeline-col ul { list-style: none; padding: 0; }
-    .timeline-col ul li {
-      font-size: .82rem;
-      color: #cbd5e1;
-      padding: 4px 0;
-      display: flex;
-      gap: 6px;
-    }
-    .timeline-col ul li::before { content: '›'; opacity: .5; }
-
-    .success-factors {
-      background: rgba(255,255,255,.07);
-      border-radius: 10px;
-      padding: 18px 20px;
-    }
-    .success-factors h3 { font-size: .9rem; color: #fcd34d; font-weight: 700; margin-bottom: 12px; }
-    .sf-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-      font-size: .85rem;
-      color: #cbd5e1;
-    }
-    .sf-item:last-child { border: none; }
-    .sf-rank {
-      flex-shrink: 0;
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: .8rem; color: #fff;
-    }
-    .sf-rank.r1 { background: #ef4444; }
-    .sf-rank.r2 { background: #f97316; }
-    .sf-rank.r3 { background: #eab308; }
-    .sf-rank.r4 { background: #22c55e; }
-    .sf-rank.r5 { background: #3b82f6; }
-
-    /* ── Watermark ────────────────────────────────────────────────── */
-    .watermark {
-      text-align: center;
-      margin-top: 32px;
-      font-size: .8rem;
-      color: #9ca3af;
-    }
-  </style>
+/* ── Orange warning box ── */
+.warn{background:#fff7ed;border-left:3px solid #f97316;border-radius:0 6px 6px 0;padding:11px 15px;font-size:.83rem;color:#7c2d12;margin-top:14px}
+.warn strong{color:#ea580c}
+</style>
 </head>
 <body>
 <div class="page">
 
-  <!-- ═══════════════ HERO ═══════════════ -->
-  <div class="hero">
-    <h1>🎯 Alpha Signal Roadmap<br><span>→ Thực Chiến TTCK Việt Nam</span></h1>
-    <p class="sub">Lộ trình 3 tuần cải tiến module ML → sẵn sàng ra quyết định giao dịch thực tế</p>
-    <div class="goal-box">
-      <strong>🏹 Trading Goal:</strong> Lọc 2–3 cổ phiếu tốt nhất / tuần &nbsp;·&nbsp;
-      Nắm giữ tối đa 5 phiên &nbsp;·&nbsp;
-      Target <strong>+5–10%</strong> &nbsp;·&nbsp;
-      Stop-Loss <strong>–5%</strong> đặt tay &nbsp;·&nbsp;
-      Yếu tố quyết định: <strong>chọn đúng mã + điểm vào hợp lý</strong>
+<!-- ═══════════ HERO ═══════════ -->
+<div class="hero">
+  <h1>🏗️ Alpha Signal System v2.0<br><em>Kiến Trúc Modular → Thực Chiến TTCK Việt Nam</em></h1>
+  <p class="meta">Phiên bản 2.0 · Kiến trúc sư hệ thống · Cập nhật: 22/05/2026 · Thay thế Roadmap v1</p>
+  <div class="pills">
+    <span class="pill" style="background:rgba(251,191,36,.15);color:#fbbf24;border-color:#fbbf24">🏹 Target +5–10% / trade</span>
+    <span class="pill" style="background:rgba(239,68,68,.15);color:#fca5a5;border-color:#fca5a5">🛡 Stop-Loss –5% cứng</span>
+    <span class="pill" style="background:rgba(34,197,94,.15);color:#86efac;border-color:#86efac">📅 Hold tối đa 5 phiên</span>
+    <span class="pill" style="background:rgba(139,92,246,.15);color:#c4b5fd;border-color:#c4b5fd">🤖 LightGBM + Wyckoff VSA</span>
+    <span class="pill" style="background:rgba(6,182,212,.15);color:#67e8f9;border-color:#67e8f9">📊 Walk-forward Backtest</span>
+    <span class="pill" style="background:rgba(249,115,22,.15);color:#fdba74;border-color:#fdba74">5 Layers · 14 Modules</span>
+  </div>
+</div>
+
+<!-- ═══════════ ARCHITECTURE ═══════════ -->
+<div class="section">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#eff6ff">🗺️</div>
+    <h2>Kiến Trúc 5 Lớp — Tổng Quan</h2>
+  </div>
+  <p style="font-size:.85rem;color:#475569;margin-bottom:16px">Mỗi lớp độc lập, có interface rõ ràng. Build từng module, test riêng, lắp ráp dần. Không có dependency ngược chiều.</p>
+
+  <!-- L0 -->
+  <div class="arch-layer l0">
+    <div class="layer-hdr">⚙️ Layer 0 — Data Infrastructure <span>· Nền tảng · Chạy trước mọi module khác</span></div>
+    <div class="layer-body">
+      <div class="mod"><div class="mid">D0.1</div><div class="mname">OHLCV Store</div><div class="mdesc">VCI historical OHLCV. Cache diskcache 15min. Rate limiter tích hợp.</div><span class="mst st-done">✓ Xong</span></div>
+      <div class="mod"><div class="mid">D0.2</div><div class="mname">Daily Snapshot Logger</div><div class="mdesc">KBS price board → SQLite 15:05 hàng ngày. Foreign, tự doanh, volume.</div><span class="mst st-key">★ Ưu tiên #1</span></div>
+      <div class="mod"><div class="mid">D0.3</div><div class="mname">Market Breadth Feed</div><div class="mdesc">Advance/Decline/Unchanged từ KBS. Tính breadth ratio mỗi phiên.</div><span class="mst st-wip">~ Tuần 1</span></div>
+      <div class="mod"><div class="mid">D0.4</div><div class="mname">Block Deal Feed</div><div class="mdesc">Lệnh thỏa thuận lớn từ HNX/HOSE public data. Parse daily.</div><span class="mst st-todo">○ Sau</span></div>
+      <div class="mod"><div class="mid">D0.5</div><div class="mname">VN30 Index Feed</div><div class="mdesc">VN30/VNINDEX OHLCV cho regime detection. VCI + KBS fallback.</div><span class="mst st-done">✓ Xong</span></div>
     </div>
   </div>
 
-  <!-- ═══════════════ REFRAME ═══════════════ -->
-  <div class="reframe">
-    <h2>🔄 Tái Định Nghĩa Bài Toán Theo Trading Goal</h2>
-    <p style="margin-bottom:14px; font-size:.92rem;">Mục tiêu giao dịch thực tế thay đổi hoàn toàn cách thiết kế model:</p>
-    <table>
-      <thead>
-        <tr>
-          <th>Chiều</th>
-          <th>⚠️ Hiện tại (sai hướng)</th>
-          <th>✅ Cần thay đổi</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Label</td>
-          <td>+5% trong T+2</td>
-          <td>Đạt target trước khi chạm SL trong 5 phiên</td>
-        </tr>
-        <tr>
-          <td>Output</td>
-          <td>Probability đơn thuần</td>
-          <td>Probability + vùng entry + SL level cụ thể</td>
-        </tr>
-        <tr>
-          <td>Scoring</td>
-          <td>Chấm điểm độc lập từng ticker</td>
-          <td>Rank relative trong cùng ngày / cùng ngành</td>
-        </tr>
-        <tr>
-          <td>Timing</td>
-          <td>Predict cuối phiên vô định</td>
-          <td>Signal trước 9:00 → quyết định ATO</td>
-        </tr>
-        <tr>
-          <td>Risk</td>
-          <td>Không xét SL survival</td>
-          <td>Chọn cổ phiếu không bị noise quét SL</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <div class="flow-arr">▼ raw data feeds</div>
 
-  <!-- ═══════════════ TUẦN 1 ═══════════════ -->
-  <div class="week-block w1">
-    <div class="week-header">
-      🔵 TUẦN 1 — Cải Tiến Nền Tảng
-      <span class="badge">Không cần thêm data source</span>
-    </div>
-    <div class="week-body">
-
-      <!-- Day 1 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N1</div>
-          <div class="day-title">
-            <h3>Redesign Label theo Trading Goal thực tế</h3>
-            <span class="tag tag-critical">⭐ Critical</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <div class="problem-box">
-            <strong>Vấn đề:</strong> Label hiện tại <code>return_T+2 ≥ +5%</code> không phản ánh trading thực.
-            Một cổ phiếu tăng +5% rồi giảm –7% trong cùng tuần → label = 1 nhưng thực tế đã cắn SL.
-          </div>
-          <p><strong>Label mới (path-dependent):</strong></p>
-          <div class="code-block">
-<span class="comment"># y = 1 chỉ khi cổ phiếu đạt target VÀ không chạm SL trong hành trình</span>
-y = <span class="number">1</span> <span class="keyword">if</span>:
-    max(close[T+<span class="number">1</span>..T+<span class="number">5</span>]) / close[T] &gt;= <span class="number">1.05</span>   <span class="comment"># đạt target</span>
-    AND min(close[T+<span class="number">1</span>..T+<span class="number">5</span>]) / close[T] &gt;= <span class="number">0.95</span>   <span class="comment"># không chạm SL</span>
-y = <span class="number">0</span> ngược lại
-
-<span class="comment"># Labels phụ để phân tích thêm</span>
-days_to_target  <span class="comment"># bao nhiêu phiên để đạt +5% (holding period tối ưu)</span>
-max_drawdown_5d <span class="comment"># drawdown tệ nhất trong 5 phiên (risk control)</span>
-sl_hit_flag     <span class="comment"># có chạm –5% không dù sau đó hồi?</span>
-          </div>
-          <div class="expect-box">
-            <strong>Kỳ vọng:</strong> Label rate tăng từ 9% → 15–20% vì nhiều cổ phiếu đạt +5% trong 5 phiên hơn T+2.
-            Model có nhiều ví dụ positive để học pattern.
-          </div>
-        </div>
-      </div>
-
-      <!-- Day 2 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N2</div>
-          <div class="day-title">
-            <h3>Cross-sectional Features — Rank trong ngày</h3>
-            <span class="tag tag-important">⚠️ Important</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <div class="problem-box">
-            <strong>Vấn đề:</strong> Model cho VNM P=77% và HPG P=74% cùng ngày — không biết cái nào tốt hơn.
-            Cần relative ranking, không phải absolute scoring.
-          </div>
-          <p><strong>Features cần thêm:</strong></p>
-          <ul class="feature-list">
-            <li><code>return_rank_vn30</code>: thứ hạng return hôm nay trong VN30 (30 = tốt nhất)</li>
-            <li><code>volume_rank_vn30</code>: thứ hạng volume trong VN30</li>
-            <li><code>rs_rank_20d</code>: thứ hạng relative strength 20 phiên</li>
-            <li><code>sector_return_rank</code>: thứ hạng trong cùng ngành</li>
-            <li><code>sector_momentum</code>: return trung bình của ngành trong 5 phiên</li>
-          </ul>
-          <div class="solution-box">
-            <strong>Logic:</strong> Cổ phiếu rank top 20% trong ngành + volume rank top 30% VN30
-            = tín hiệu rotation tiền mạnh hơn nhiều. Đây là cách smart money thực sự được phát hiện.
-          </div>
-        </div>
-      </div>
-
-      <!-- Day 3 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N3</div>
-          <div class="day-title">
-            <h3>Market Regime Filter — Không vào lệnh khi downtrend</h3>
-            <span class="tag tag-critical">⭐ Critical</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <div class="problem-box">
-            <strong>Vấn đề:</strong> Model train trộn lẫn uptrend và downtrend → bị nhiễu nặng.
-            Một pattern tốt trong uptrend là bẫy trong downtrend. AUC thấp 1 phần vì lý do này.
-          </div>
-          <div class="code-block">
-<span class="comment"># Regime detector</span>
-BULL:    VN30 &gt; SMA20  AND  ADX &gt; <span class="number">20</span>  AND  breadth &gt; <span class="number">60</span>%
-BEAR:    VN30 &lt; SMA20  AND  ADX &gt; <span class="number">20</span>  AND  breadth &lt; <span class="number">40</span>%
-NEUTRAL: còn lại
-
-<span class="comment"># Tác động đến threshold</span>
-BULL:    threshold = <span class="number">0.65</span>  <span class="comment">← bình thường</span>
-NEUTRAL: threshold = <span class="number">0.70</span>  <span class="comment">← chặt hơn</span>
-BEAR:    DISABLE picks   <span class="comment">← không vào lệnh long</span>
-          </div>
-          <div class="expect-box">
-            <strong>Impact:</strong> Loại ~50% lệnh thua xuất phát từ việc buy trong downtrend.
-            Đây là bộ lọc đơn giản nhất nhưng tác động lớn nhất đến P&amp;L thực tế.
-          </div>
-        </div>
-      </div>
-
-      <!-- Day 4 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N4</div>
-          <div class="day-title">
-            <h3>Entry Timing Features — Vào gần support, không vào gần resistance</h3>
-            <span class="tag tag-critical">⭐ Critical — Quan trọng nhất tuần 1</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <div class="problem-box">
-            <strong>Vấn đề:</strong> Cùng 1 cổ phiếu, mua tại support → win rate ~70%.
-            Mua tại resistance → win rate ~30%. Model hiện tại bỏ hoàn toàn yếu tố này.
-          </div>
-          <p><strong>Features entry timing:</strong></p>
-          <ul class="feature-list">
-            <li><code>dist_to_support_20d</code>: khoảng cách % đến đáy 20 phiên (thấp = gần support = tốt)</li>
-            <li><code>dist_to_resistance_20d</code>: khoảng cách đến đỉnh 20 phiên (thấp = xấu)</li>
-            <li><code>price_position_in_range</code>: (close–low_20d)/(high_20d–low_20d) → 0=đáy, 1=đỉnh range</li>
-            <li><code>inside_day_pattern</code>: close hôm qua trong range ngày trước (consolidation)</li>
-            <li><code>breakout_flag</code>: giá đóng cửa cao nhất 10 phiên (real breakout)</li>
-            <li><code>gap_from_open</code>: gap up/down so với close hôm trước</li>
-          </ul>
-          <div class="solution-box">
-            <strong>Rule entry hợp lý:</strong> P_alpha ≥ 0.65
-            AND <code>price_position_in_range</code> &lt; 0.30 (gần đáy range)
-            = điểm vào tốt nhất, risk/reward cao nhất.
-          </div>
-        </div>
-      </div>
-
-      <!-- Day 5 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N5</div>
-          <div class="day-title">
-            <h3>Backtest sơ bộ + Đánh giá KPI</h3>
-            <span class="tag tag-foundation">📊 Evaluation</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <p><strong>Simulate trading trên holdout data 3 tháng gần nhất:</strong></p>
-          <div class="code-block">
-Mỗi ngày: chạy model → lấy top picks (max <span class="number">3</span> lệnh cùng lúc)
-Simulate: mua ATO hôm sau, hold max <span class="number">5</span> phiên
-Exit: target +<span class="number">5</span>% HOẶC stop-loss –<span class="number">5</span>% HOẶC hết <span class="number">5</span> phiên
-Ghi lại: entry, exit, P&amp;L, holding days, regime tại thời điểm vào
-          </div>
-          <p><strong>KPI cần đạt trước khi lên tuần 2:</strong></p>
-          <table class="kpi-table">
-            <thead><tr><th>Metric</th><th>Minimum</th><th>Target</th></tr></thead>
-            <tbody>
-              <tr><td>Win rate</td><td class="ok">&gt; 45%</td><td class="tgt">&gt; 55%</td></tr>
-              <tr><td>Profit factor (gross win / gross loss)</td><td class="ok">&gt; 1.3</td><td class="tgt">&gt; 1.8</td></tr>
-              <tr><td>Max drawdown portfolio</td><td class="ok">&lt; 15%</td><td class="tgt">&lt; 10%</td></tr>
-              <tr><td>Avg holding days</td><td class="ok">&lt; 5</td><td class="tgt">2–4</td></tr>
-              <tr><td>Số lệnh / tháng</td><td class="ok">&gt; 5</td><td class="tgt">8–12</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+  <!-- L1 -->
+  <div class="arch-layer l1">
+    <div class="layer-hdr">📡 Layer 1 — Signal Generators <span>· 6 engines độc lập · Output: normalized score [0,1] per (ticker, day)</span></div>
+    <div class="layer-body">
+      <div class="mod"><div class="mid">S1</div><div class="mname">Wyckoff VSA Engine</div><div class="mdesc">Phase A/B/C/D, Spring quality, LPS, Volume Spread Analysis, Cause strength. Cải tiến toàn diện.</div><span class="mst st-key">★ Core</span></div>
+      <div class="mod"><div class="mid">S2</div><div class="mname">Relative Strength Engine</div><div class="mdesc">RS vs VN30, RS vs sector, momentum rank, cross-sectional percentile.</div><span class="mst st-wip">~ Tuần 1</span></div>
+      <div class="mod"><div class="mid">S3</div><div class="mname">Market Regime Engine</div><div class="mdesc">BULL/NEUTRAL/BEAR state. ADX, breadth, VN30 trend. 5-state machine.</div><span class="mst st-wip">~ Tuần 1</span></div>
+      <div class="mod"><div class="mid">S4</div><div class="mname">Smart Money Flow Engine</div><div class="mdesc">Foreign net history (D0.2), tự doanh, alignment score. Phân biệt "ai đang mua".</div><span class="mst st-key">★ Core</span></div>
+      <div class="mod"><div class="mid">S5</div><div class="mname">Entry Timing Engine</div><div class="mdesc">Support/resistance, price position in range, SL survival analysis, ATR buffer, LPS entry.</div><span class="mst st-wip">~ Tuần 1</span></div>
+      <div class="mod"><div class="mid">S6</div><div class="mname">Multi-timeframe Aggregator</div><div class="mdesc">Stack 3D/10D/20D signals. Bullish alignment filter. Weighted composite score.</div><span class="mst st-todo">○ Tuần 2</span></div>
     </div>
   </div>
 
-  <!-- ═══════════════ TUẦN 2 ═══════════════ -->
-  <div class="week-block w2">
-    <div class="week-header">
-      🟡 TUẦN 2 — Tăng Chất Lượng Signal
-      <span class="badge">Cần thêm data + logic phức tạp hơn</span>
+  <div class="flow-arr">▼ signal scores S1..S6</div>
+
+  <!-- L2 -->
+  <div class="arch-layer l2">
+    <div class="layer-hdr">🤖 Layer 2 — ML Model Engine <span>· LightGBM · Walk-forward CV · Probability calibration</span></div>
+    <div class="layer-body">
+      <div class="mod"><div class="mid">M1</div><div class="mname">Feature Builder</div><div class="mdesc">Aggregate S1–S6 + cross-sectional rank. 35+ features. Zero look-ahead guarantee.</div><span class="mst st-wip">~ Tuần 1</span></div>
+      <div class="mod"><div class="mid">M2</div><div class="mname">Label Creator</div><div class="mdesc">Path-dependent: đạt target VÀ không chạm SL trong 5 phiên. Thay label T+2 cũ.</div><span class="mst st-key">★ Ngày 1</span></div>
+      <div class="mod"><div class="mid">M3</div><div class="mname">Model Trainer</div><div class="mdesc">LightGBM + TimeSeriesSplit. Imbalance handling. Artifact persistence.</div><span class="mst st-done">✓ Base xong</span></div>
+      <div class="mod"><div class="mid">M4</div><div class="mname">Probability Calibrator</div><div class="mdesc">Isotonic Regression post-hoc. Confidence interval. WATCH/BUY/STRONG_BUY enum.</div><span class="mst st-todo">○ Tuần 2</span></div>
+      <div class="mod"><div class="mid">M5</div><div class="mname">Walk-forward Backtester</div><div class="mdesc">Simulate ATO entry, SL/target exit, portfolio rules. P&amp;L metrics report.</div><span class="mst st-todo">○ Tuần 3</span></div>
     </div>
-    <div class="week-body">
+  </div>
 
-      <!-- Day 6 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N6</div>
-          <div class="day-title">
-            <h3>Tích hợp Foreign Flow Proxy thực tế từ KBS</h3>
-            <span class="tag tag-important">⚠️ Important</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <p>VNDirect bị block nhưng <strong>KBS Price Board có foreign buy/sell real-time.</strong> Xây dựng features từ đây:</p>
-          <ul class="feature-list">
-            <li><code>foreign_net_today</code>: buy – sell từ KBS phiên hôm nay</li>
-            <li><code>foreign_net_5d</code>: tích lũy 5 phiên gần nhất (cần lưu lịch sử)</li>
-            <li><code>foreign_room_pct_left</code>: % room còn lại (alert khi &lt; 5%)</li>
-            <li><code>foreign_momentum</code>: khối ngoại mua ròng 3/5 phiên gần nhất?</li>
-            <li><code>foreign_vs_tu_doan</code>: ngoại và tự doanh cùng chiều không?</li>
+  <div class="flow-arr">▼ P_alpha per ticker</div>
+
+  <!-- L3 -->
+  <div class="arch-layer l3">
+    <div class="layer-hdr">⚖️ Layer 3 — Decision Engine <span>· Lọc → Rank → Sizing → Alert</span></div>
+    <div class="layer-body">
+      <div class="mod"><div class="mid">D3.1</div><div class="mname">Regime Gate</div><div class="mdesc">BEAR → block all picks. NEUTRAL → raise threshold. Hard rule, không override.</div><span class="mst st-wip">~ Tuần 1</span></div>
+      <div class="mod"><div class="mid">D3.2</div><div class="mname">Cross-sectional Ranker</div><div class="mdesc">Sort by calibrated P. Sector diversity constraint. Liquidity filter.</div><span class="mst st-wip">~ Tuần 1</span></div>
+      <div class="mod"><div class="mid">D3.3</div><div class="mname">SL Filter</div><div class="mdesc">SL buffer ≥ 1.5 ATR. dist_to_support ≤ 3%. Reject entries near resistance.</div><span class="mst st-wip">~ Tuần 2</span></div>
+      <div class="mod"><div class="mid">D3.4</div><div class="mname">Position Sizer</div><div class="mdesc">P ≥ 0.70 → 30% vốn. P = 0.65–0.70 → 20%. Max 3 lệnh đồng thời.</div><span class="mst st-todo">○ Tuần 3</span></div>
+      <div class="mod"><div class="mid">D3.5</div><div class="mname">Alert Generator</div><div class="mdesc">Morning report 8:45. Entry zone, SL giá, target giá, reason text ngắn gọn.</div><span class="mst st-todo">○ Tuần 3</span></div>
+    </div>
+  </div>
+
+  <div class="flow-arr">▼ ranked picks + entry params</div>
+
+  <!-- L4 -->
+  <div class="arch-layer l4">
+    <div class="layer-hdr">🚀 Layer 4 — Execution & Feedback <span>· UI · Trade tracking · Model cải tiến liên tục</span></div>
+    <div class="layer-body">
+      <div class="mod"><div class="mid">E1</div><div class="mname">Daily Screening UI</div><div class="mdesc">Streamlit. Top picks, probability bars, entry card đầy đủ (SL/target/reason).</div><span class="mst st-done">✓ Base xong</span></div>
+      <div class="mod"><div class="mid">E2</div><div class="mname">Trade Logger</div><div class="mdesc">Nhập tay: mã, giá vào, size. Paper + real trade cùng UI.</div><span class="mst st-todo">○ Tuần 3</span></div>
+      <div class="mod"><div class="mid">E3</div><div class="mname">P&amp;L Tracker</div><div class="mdesc">Auto-track close price daily. Unrealized/realized PnL. Win rate, streak, equity curve.</div><span class="mst st-todo">○ Tuần 3</span></div>
+      <div class="mod"><div class="mid">E4</div><div class="mname">Feedback Loop</div><div class="mdesc">Actual outcome → label dataset. Retrain trigger sau 30 lệnh mới. Model self-improves.</div><span class="mst st-todo">○ Tháng 2</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ CHI TIẾT MODULE CỐT LÕI ═══════════ -->
+<div class="section">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#eff6ff">🔬</div>
+    <h2>Chi Tiết Các Module Cốt Lõi</h2>
+  </div>
+
+  <!-- S1 Wyckoff -->
+  <div class="mod-detail" style="border-color:#bfdbfe">
+    <div class="mdhdr" style="background:#eff6ff">
+      <span class="mid2" style="background:#1d4ed8;color:#fff">S1</span>
+      <h3>Wyckoff VSA Engine — Cải tiến toàn diện so với hiện tại</h3>
+      <span style="font-size:.73rem;color:#64748b;margin-left:auto">Viết lại detect_accumulation_phase()</span>
+    </div>
+    <div class="mdbody">
+      <p style="font-size:.83rem;color:#374151;margin-bottom:10px">Phân biệt được 4 loại tích lũy tại VN: Smart accumulation / Sector rotation / Bẫy retail / Tự nhiên. Thêm VSA (Volume Spread Analysis) và time-at-price.</p>
+      <div class="spec2">
+        <div class="sbox">
+          <h4>Output features</h4>
+          <ul>
+            <li><code>wyckoff_phase</code>: A/B/C/D/DIST/NONE</li>
+            <li><code>phase_duration_d</code>: số phiên trong phase hiện tại</li>
+            <li><code>cause_strength</code>: tổng vol tích lũy / vol TB</li>
+            <li><code>spring_quality</code>: 0–1 (Spring thật vs giả)</li>
+            <li><code>lps_detected</code>: Last Point of Support flag</li>
+            <li><code>effort_result</code>: effort(vol) vs result(price)</li>
+            <li><code>no_supply_flag</code>: narrow spread + low vol</li>
+            <li><code>stopping_vol</code>: vol đột biến tại đáy</li>
           </ul>
-          <div class="problem-box">
-            <strong>Lưu ý:</strong> Cần implement daily job lưu KBS data → SQLite mỗi 15:05.
-            Sau 1 tháng tích lũy mới có 20 phiên data → đưa vào model.
-            Đây là tín hiệu mạnh nhất tại TTCK VN, xứng đáng đầu tư thời gian.
-          </div>
+        </div>
+        <div class="sbox">
+          <h4>Cải tiến vs code cũ</h4>
+          <ul>
+            <li>Phase B: bắt buộc ≥ 10 phiên (không phải 1 window)</li>
+            <li>Spring: vol TẠI đáy &lt; vol TB → Spring thật</li>
+            <li>LPS: test sau breakout, vol thấp + giá ≥ breakout</li>
+            <li>Vol profile: vol ở 1/3 dưới range &gt; vol 1/3 trên</li>
+            <li>Cause strength: Point-and-Figure column proxy</li>
+            <li>Adaptive window theo market cap bucket</li>
+            <li>Phân biệt Distribution vs Accumulation bằng S4</li>
+          </ul>
         </div>
       </div>
+      <div class="code-dark">
+<span class="cm"># Interface output S1 — WyckoffSignal dataclass</span>
+<span class="ck">class</span> WyckoffSignal:
+    phase:          <span class="cs">Literal["A","B","C","D","DIST","NONE"]</span>
+    phase_duration: <span class="cn">int</span>     <span class="cm"># số phiên đang trong phase này</span>
+    cause_strength: <span class="cn">float</span>   <span class="cm"># [0,∞) — tích lũy càng dày càng cao</span>
+    spring_quality: <span class="cn">float</span>   <span class="cm"># [0,1] — 1.0 = Spring hoàn hảo</span>
+    lps_detected:   <span class="cn">bool</span>
+    no_supply:      <span class="cn">bool</span>
+    stopping_vol:   <span class="cn">bool</span>
+    effort_result:  <span class="cn">float</span>   <span class="cm"># &gt;1 = effort &gt; result = accumulation pattern</span>
+    score:          <span class="cn">float</span>   <span class="cm"># [0,1] composite Wyckoff score</span>
+    entry_signal:   <span class="cs">Literal["LPS_BUY","SPRING_BUY","PHASE_D_BUY","WATCH","AVOID"]</span>
+      </div>
+    </div>
+  </div>
 
-      <!-- Day 7 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N7</div>
-          <div class="day-title">
-            <h3>Data Logger — Xây dựng lịch sử tự động mỗi phiên</h3>
-            <span class="tag tag-foundation">🏗️ Infrastructure</span>
-          </div>
+  <!-- S3 Regime -->
+  <div class="mod-detail" style="border-color:#bfdbfe">
+    <div class="mdhdr" style="background:#eff6ff">
+      <span class="mid2" style="background:#1d4ed8;color:#fff">S3</span>
+      <h3>Market Regime Engine — Bộ lọc quan trọng nhất</h3>
+      <span style="font-size:.73rem;color:#64748b;margin-left:auto">5-state machine · Dynamic threshold</span>
+    </div>
+    <div class="mdbody">
+      <div class="spec2">
+        <div class="sbox">
+          <h4>5 Regime states</h4>
+          <ul>
+            <li><strong>BULL</strong>: VN30 &gt; SMA20, ADX &gt; 20, breadth &gt; 60%</li>
+            <li><strong>BULL_WEAK</strong>: VN30 &gt; SMA20, ADX 15–20</li>
+            <li><strong>NEUTRAL</strong>: VN30 trong ±2% quanh SMA20</li>
+            <li><strong>BEAR_WEAK</strong>: VN30 &lt; SMA20, ADX 15–20</li>
+            <li><strong>BEAR</strong>: VN30 &lt; SMA20, ADX &gt; 20, breadth &lt; 40%</li>
+          </ul>
         </div>
-        <div class="day-body">
-          <div class="problem-box">
-            <strong>Vấn đề cốt lõi:</strong> Tất cả data chỉ có today snapshot, không có lịch sử foreign flow,
-            block deal, tự doanh. Không thể train signal mạnh nếu thiếu lịch sử.
-          </div>
-          <div class="code-block">
-<span class="comment"># Cấu trúc lưu trữ</span>
-data/local_db/
-  price_board.db   <span class="comment"># SQLite, append mỗi phiên</span>
-    → table: daily_snapshot
-       (date, ticker, close, volume, foreign_buy, foreign_sell,
-        room_pct, proprietary_net, matched_vol, put_through_vol)
-
-<span class="comment"># Job chạy tự động lúc 15:05 mỗi ngày giao dịch</span>
-<span class="comment"># → gọi KBS price_board, lưu toàn bộ VN30</span>
-<span class="comment"># Sau 20 phiên → có 600 rows lịch sử VN30 thực tế</span>
-          </div>
-          <div class="solution-box">
-            <strong>Giá trị tích lũy:</strong> Sau 3 tháng tích lũy đủ data để train model
-            với foreign flow + tự doanh thực tế → đây là moat (lợi thế) dài hạn.
-          </div>
+        <div class="sbox">
+          <h4>Threshold theo regime</h4>
+          <ul>
+            <li><strong>BULL</strong>: P_min = 0.65, max_pos = 3</li>
+            <li><strong>BULL_WEAK</strong>: P_min = 0.68, max_pos = 2</li>
+            <li><strong>NEUTRAL</strong>: P_min = 0.72, max_pos = 1</li>
+            <li><strong>BEAR_WEAK</strong>: P_min = 0.80 (cực chọn lọc)</li>
+            <li><strong>BEAR</strong>: DISABLE — không vào lệnh long</li>
+          </ul>
         </div>
       </div>
+    </div>
+  </div>
 
-      <!-- Day 8 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N8</div>
-          <div class="day-title">
-            <h3>Multi-timeframe Signal Alignment</h3>
-            <span class="tag tag-important">⚠️ Important</span>
-          </div>
+  <!-- S4 Smart Money -->
+  <div class="mod-detail" style="border-color:#bfdbfe">
+    <div class="mdhdr" style="background:#eff6ff">
+      <span class="mid2" style="background:#1d4ed8;color:#fff">S4</span>
+      <h3>Smart Money Flow Engine — Phân biệt "ai đang mua"</h3>
+      <span style="font-size:.73rem;color:#64748b;margin-left:auto">Phụ thuộc D0.2 · Cần ≥ 5 phiên lịch sử</span>
+    </div>
+    <div class="mdbody">
+      <div class="spec2">
+        <div class="sbox">
+          <h4>Features từ KBS history (D0.2)</h4>
+          <ul>
+            <li><code>foreign_net_1d</code>: net buy/sell hôm nay</li>
+            <li><code>foreign_net_5d</code>: tích lũy 5 phiên gần nhất</li>
+            <li><code>foreign_streak</code>: số phiên mua ròng liên tiếp</li>
+            <li><code>foreign_buying_divergence</code>: mua nhưng giá flat</li>
+            <li><code>tu_doan_net_5d</code>: tự doanh tích lũy 5 phiên</li>
+            <li><code>alignment_score</code>: ngoại + tự doanh cùng chiều</li>
+            <li><code>room_pct_left</code>: % room ngoại còn lại</li>
+          </ul>
         </div>
-        <div class="day-body">
-          <div class="problem-box">
-            <strong>Vấn đề:</strong> Tín hiệu 1 timeframe dễ bị nhiễu. Cần alignment giữa các khung thời gian.
-            Pattern tốt trên 10 phiên bị phá vỡ bởi noise 3 phiên ngắn hạn.
-          </div>
-          <div class="code-block">
-<span class="comment"># Multi-timeframe stack</span>
-score_3d  = signal(window=<span class="number">3</span>)   <span class="comment"># momentum ngắn hạn, entry timing</span>
-score_10d = signal(window=<span class="number">10</span>)  <span class="comment"># trend chính</span>
-score_20d = signal(window=<span class="number">20</span>)  <span class="comment"># Wyckoff phase, accumulation</span>
-
-<span class="comment"># Weighted aggregate</span>
-final_score = <span class="number">0.2</span> × score_3d + <span class="number">0.5</span> × score_10d + <span class="number">0.3</span> × score_20d
-
-<span class="comment"># Chỉ pick khi cả 3 timeframe cùng chiều (bullish alignment)</span>
-<span class="comment"># → lọc được ~70% false signal từ noise ngắn hạn</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Day 9 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N9</div>
-          <div class="day-title">
-            <h3>Stop-Loss Survival Score — Feature độc đáo nhất</h3>
-            <span class="tag tag-critical">⭐ Critical — Quan trọng nhất tuần 2</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <p>Không chỉ hỏi <em>"cổ phiếu có tăng không?"</em> mà hỏi
-          <strong>"cổ phiếu có sống sót qua SL –5% không?"</strong></p>
-          <div class="code-block">
-<span class="comment"># SL Survival Analysis</span>
-atr_14 = average_true_range(<span class="number">14</span>)
-sl_distance_pct = <span class="number">5</span>%   <span class="comment"># fixed SL</span>
-
-<span class="comment"># SL buffer ratio: bao nhiêu ATR giữa entry và SL?</span>
-sl_buffer_ratio = sl_distance_pct / atr_norm
-
-<span class="comment"># Nếu ATR = 3% và SL = 5% → sl_buffer = 1.67 ATR → dễ bị noise quét</span>
-<span class="comment"># Lý tưởng: sl_buffer > 2.0 ATR → SL đủ xa khỏi daily noise</span>
-
-dist_to_support = (close - low_20d) / close
-<span class="comment"># Nếu dist_to_support < 3% → support ngay dưới entry → SL hợp lý</span>
-
-<span class="comment"># Điều kiện vào lệnh an toàn</span>
-sl_buffer_ratio &gt;= <span class="number">1.5</span>  AND  dist_to_support &lt;= <span class="number">3</span>%
-          </div>
-          <div class="expect-box">
-            <strong>Impact:</strong> Loại ~30% lệnh có SL quá gần giá → những lệnh bị quét SL do noise
-            dù sau đó đi đúng hướng. Đây là pain point lớn nhất của retail trader VN.
-          </div>
+        <div class="sbox">
+          <h4>Scoring logic</h4>
+          <ul>
+            <li>Ngoại mua ròng 3+/5 phiên → +0.30 score</li>
+            <li>Tự doanh cùng chiều ngoại → +0.20</li>
+            <li>Buying divergence (vol↑ price flat) → +0.25</li>
+            <li>Room &lt; 5% → CẢNH BÁO (không còn upside ngoại)</li>
+            <li>Ngoại bán mạnh trong uptrend → red flag –0.40</li>
+            <li>Cả hai cùng mua → signal mạnh nhất tại VN</li>
+          </ul>
         </div>
       </div>
+    </div>
+  </div>
 
-      <!-- Day 10 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N10</div>
-          <div class="day-title">
-            <h3>Probability Calibration — Xác suất có ý nghĩa thực tế</h3>
-            <span class="tag tag-foundation">📊 Quality</span>
-          </div>
+  <!-- S5 Entry Timing -->
+  <div class="mod-detail" style="border-color:#bfdbfe">
+    <div class="mdhdr" style="background:#eff6ff">
+      <span class="mid2" style="background:#1d4ed8;color:#fff">S5</span>
+      <h3>Entry Timing Engine — Vào đúng điểm, SL không bị quét noise</h3>
+      <span style="font-size:.73rem;color:#64748b;margin-left:auto">Output: entry zone + SL price + target price + R/R ratio</span>
+    </div>
+    <div class="mdbody">
+      <div class="spec2">
+        <div class="sbox">
+          <h4>Support / Resistance</h4>
+          <ul>
+            <li><code>support_20d</code>: low_20d × 0.99</li>
+            <li><code>resistance_20d</code>: high_20d</li>
+            <li><code>price_in_range</code>: (close–low)/(high–low) → 0=đáy</li>
+            <li><code>dist_to_support_pct</code>: % từ close đến support</li>
+            <li><code>dist_to_resist_pct</code>: % từ close đến resistance</li>
+            <li><code>risk_reward_ratio</code>: target_dist / sl_dist</li>
+          </ul>
         </div>
-        <div class="day-body">
-          <div class="problem-box">
-            <strong>Vấn đề:</strong> P=0.72 hiện tại không có nghĩa thực tế.
-            LightGBM nổi tiếng overconfident. Precision@0.65 = 0.11 chứng minh điều này.
-          </div>
-          <p>Sau khi train, calibrate bằng <strong>Isotonic Regression</strong> trên validation set:</p>
-          <div class="code-block">
-<span class="comment"># Output sau calibration</span>
+        <div class="sbox">
+          <h4>SL Survival Analysis</h4>
+          <ul>
+            <li><code>atr_14</code>: Average True Range 14 phiên</li>
+            <li><code>sl_buffer_atr</code>: (close – support) / atr_14</li>
+            <li>sl_buffer &lt; 1.5 → SKIP (SL quá gần, noise sẽ quét)</li>
+            <li><code>suggested_sl</code>: max(support_20d, close – 5%)</li>
+            <li><code>suggested_target</code>: close + R/R × sl_dist</li>
+            <li><code>entry_zone</code>: [close × 0.99, close × 1.005]</li>
+          </ul>
+        </div>
+      </div>
+      <div class="code-dark">
+<span class="cm"># Output card thực chiến mỗi sáng 8:45</span>
 {
-  <span class="string">"ticker"</span>: <span class="string">"HPG"</span>,
-  <span class="string">"raw_probability"</span>: <span class="number">0.72</span>,
-  <span class="string">"calibrated_probability"</span>: <span class="number">0.55</span>,    <span class="comment">← con số thực tế</span>
-  <span class="string">"confidence_interval"</span>: [<span class="number">0.47</span>, <span class="number">0.63</span>],
-  <span class="string">"recommendation"</span>: <span class="string">"WATCH"</span>   <span class="comment">← không đủ conviction để vào</span>
+  <span class="cs">"ticker"</span>: <span class="cs">"HPG"</span>,
+  <span class="cs">"entry_zone"</span>: [<span class="cn">24500</span>, <span class="cn">25000</span>],  <span class="cm"># mua trong vùng này (ATO hoặc limit)</span>
+  <span class="cs">"suggested_sl"</span>: <span class="cn">23200</span>,        <span class="cm"># đặt SL dưới support 20d</span>
+  <span class="cs">"suggested_target"</span>: <span class="cn">26800</span>,     <span class="cm"># R/R = 2.5 → hợp lý</span>
+  <span class="cs">"sl_buffer_atr"</span>: <span class="cn">2.1</span>,          <span class="cm"># ✓ an toàn (> 1.5 ATR)</span>
+  <span class="cs">"risk_reward"</span>: <span class="cn">2.5</span>,            <span class="cm"># ✓ tốt (> 2.0)</span>
+  <span class="cs">"entry_note"</span>: <span class="cs">"Gần đáy range, xa resistance. Wyckoff Phase C Spring."</span>
 }
-
-<span class="comment"># Rule: calibrated_probability < 0.55 → WATCH dù raw P cao</span>
-          </div>
-        </div>
       </div>
-
     </div>
   </div>
 
-  <!-- ═══════════════ TUẦN 3 ═══════════════ -->
-  <div class="week-block w3">
-    <div class="week-header">
-      🔴 TUẦN 3 — Sẵn Sàng Thực Chiến
-      <span class="badge">Go-live preparation</span>
+  <!-- M2 Label -->
+  <div class="mod-detail" style="border-color:#bbf7d0">
+    <div class="mdhdr" style="background:#f0fdf4">
+      <span class="mid2" style="background:#16a34a;color:#fff">M2</span>
+      <h3>Label Creator — Path-dependent, phản ánh trading goal thực</h3>
+      <span style="font-size:.73rem;color:#64748b;margin-left:auto">Ngày đầu tiên cần làm — toàn bộ hệ thống phụ thuộc vào label đúng</span>
     </div>
-    <div class="week-body">
+    <div class="mdbody">
+      <div class="code-dark">
+<span class="cm"># Label chính: đạt target VÀ không chạm SL trong hành trình 5 phiên</span>
+path_max  = max(close[T+<span class="cn">1</span>..T+<span class="cn">5</span>]) / close[T] - <span class="cn">1</span>   <span class="cm"># max gain</span>
+path_min  = min(close[T+<span class="cn">1</span>..T+<span class="cn">5</span>]) / close[T] - <span class="cn">1</span>   <span class="cm"># max drawdown</span>
 
-      <!-- Day 11 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N11</div>
-          <div class="day-title">
-            <h3>Daily Screening Report — Chạy trước 9:00 mỗi sáng</h3>
-            <span class="tag tag-live">🚀 Live Ready</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <p>Workflow thực chiến mỗi sáng <strong>8:45–9:00</strong> (trước ATO):</p>
-          <div class="code-block">
-═══ ALPHA PICKS ngày <span class="number">22</span>/<span class="number">05</span>/2026 ═══  [BULL regime ✓]
+y_main = <span class="cn">1</span> <span class="ck">if</span> (path_max &gt;= <span class="cn">0.05</span>) <span class="ck">and</span> (path_min &gt; -<span class="cn">0.05</span>) <span class="ck">else</span> <span class="cn">0</span>
 
-<span class="number">1.</span> HPG  │ P=<span class="number">68</span>%  │ Entry: <span class="number">24,500</span>–<span class="number">25,000</span>  │ SL: <span class="number">23,200</span>  │ Target: <span class="number">26,200</span>
-   → Wyckoff Phase C + VN30 uptrend + foreign mua ròng <span class="number">3</span> phiên
-   → <span class="string">ENTRY: ATO hoặc chờ breakout 25,000</span>
-   → SL buffer: <span class="number">2.1</span> ATR ✓  dist_to_support: <span class="number">2.3</span>% ✓
-
-<span class="number">2.</span> FPT  │ P=<span class="number">65</span>%  │ Entry: <span class="number">125,000</span>–<span class="number">127,000</span>  │ SL: <span class="number">119,000</span>  │ Target: <span class="number">134,000</span>
-   → Volume divergence + RSI không theo giá
-   → <span class="comment">CAUTION: gần resistance 128,000 → chờ pullback về 125,000</span>
-          </div>
-        </div>
+<span class="cm"># Labels phụ (analysis + multi-output model)</span>
+days_to_target = first_day_reaching_5pct_gain   <span class="cm"># holding period tối ưu</span>
+sl_hit_flag    = (path_min &lt;= -<span class="cn">0.05</span>)           <span class="cm"># có bị quét SL không?</span>
+max_gain_5d    = path_max                         <span class="cm"># upside tiềm năng thực tế</span>
       </div>
-
-      <!-- Day 12 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N12</div>
-          <div class="day-title">
-            <h3>Walk-forward Backtesting Engine nghiêm túc</h3>
-            <span class="tag tag-foundation">📊 Validation</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <div class="solution-box">
-            <strong>Walk-forward:</strong> Train tháng 1–4 → test tháng 5.
-            Train tháng 2–5 → test tháng 6. Không shuffle để tránh look-ahead bias.
-          </div>
-          <p><strong>KPI cần đạt để go-live:</strong></p>
-          <table class="kpi-table">
-            <thead><tr><th>Metric</th><th>Minimum go-live</th><th>Target ổn định</th></tr></thead>
-            <tbody>
-              <tr><td>Win rate</td><td class="ok">≥ 45%</td><td class="tgt">≥ 55%</td></tr>
-              <tr><td>Profit factor</td><td class="ok">≥ 1.3</td><td class="tgt">≥ 1.8</td></tr>
-              <tr><td>Max portfolio drawdown</td><td class="ok">≤ 15%</td><td class="tgt">≤ 10%</td></tr>
-              <tr><td>Avg holding days</td><td class="ok">≤ 5</td><td class="tgt">2–4</td></tr>
-              <tr><td>Consecutive losing trades</td><td class="ok">≤ 4</td><td class="tgt">≤ 3</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Day 13 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N13</div>
-          <div class="day-title">
-            <h3>Position Sizing + Portfolio Rules</h3>
-            <span class="tag tag-live">🚀 Live Ready</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <div class="code-block">
-<span class="comment"># Quản lý vốn theo conviction</span>
-P &gt;= <span class="number">0.70</span>  AND  SL_buffer &gt;= <span class="number">2.0</span>  →  size = <span class="number">30</span>% vốn
-P = <span class="number">0.65</span>–<span class="number">0.70</span>                        →  size = <span class="number">20</span>% vốn
-P &lt;  <span class="number">0.65</span>                          →  không vào
-
-<span class="comment"># Portfolio rules</span>
-max_concurrent_positions = <span class="number">3</span>
-no_2_tickers_same_sector = True
-pause_if_portfolio_drawdown &gt; <span class="number">10</span>% = True
-no_new_trades_in_BEAR_regime = True
-          </div>
-        </div>
-      </div>
-
-      <!-- Day 14 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N14</div>
-          <div class="day-title">
-            <h3>Paper Trading Tracker + P&amp;L Logger</h3>
-            <span class="tag tag-live">🚀 Live Ready</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <p>Tab mới trong Streamlit để log kết quả thực tế:</p>
-          <ul class="feature-list">
-            <li>Nhập thủ công: mã, giá vào, ngày vào, size</li>
-            <li>System tự track close price hàng ngày → unrealized P&L</li>
-            <li>So sánh: signal probability vs actual outcome → calibration data</li>
-            <li>Sau 20 lệnh: update model với feedback thực tế (online learning nhẹ)</li>
-            <li>Dashboard: Win rate, Profit factor, Best/Worst trade, Streak</li>
+      <div class="spec2" style="margin-top:10px">
+        <div class="sbox">
+          <h4>Kỳ vọng label distribution</h4>
+          <ul>
+            <li>y=1 (đạt target, không SL): 15–20%</li>
+            <li>y=0 (chạm SL hoặc không đủ gain): 80–85%</li>
+            <li>Cải thiện vs label cũ: 9% → 15–20%</li>
+            <li>scale_pos_weight ≈ 4–5x</li>
           </ul>
-          <div class="solution-box">
-            <strong>Quan trọng:</strong> Mỗi lệnh thực tế là 1 training sample quý giá.
-            Sau 3 tháng paper trading → có 30–40 samples thực tế → retrain model → precision tăng.
-          </div>
         </div>
-      </div>
-
-      <!-- Day 15 -->
-      <div class="day-card">
-        <div class="day-header">
-          <div class="day-num">N15</div>
-          <div class="day-title">
-            <h3>Go-Live Checklist + First Real Trade</h3>
-            <span class="tag tag-live">🚀 GO-LIVE</span>
-          </div>
-        </div>
-        <div class="day-body">
-          <p><strong>Checklist bắt buộc trước khi vào tiền thật:</strong></p>
-          <ul class="checklist">
-            <li><span class="cb"></span> Backtest 3 tháng gần nhất: win rate ≥ 45%, profit factor ≥ 1.3</li>
-            <li><span class="cb"></span> Calibrated probability hoạt động đúng trên validation set</li>
-            <li><span class="cb"></span> Market regime detector đã test qua ít nhất 1 đợt downtrend</li>
-            <li><span class="cb"></span> SL survival score đã loại được ≥ 30% false picks</li>
-            <li><span class="cb"></span> Entry zone hợp lý (kiểm tra thủ công 5 picks gần nhất)</li>
-            <li><span class="cb"></span> Đã paper trade ít nhất 2 tuần (≥ 10 lệnh)</li>
-            <li><span class="cb"></span> Portfolio rules đã set sẵn (max size, max concurrent)</li>
+        <div class="sbox">
+          <h4>Lưu ý kỹ thuật</h4>
+          <ul>
+            <li>Shift(–5) → drop 5 rows cuối mỗi ticker</li>
+            <li>Chỉ dùng daily close (phù hợp ATO entry)</li>
+            <li>Test target_threshold 3%, 5%, 7% → chọn optimal</li>
+            <li>SL_threshold: HOSE 5%, HNX 6%, UPCOM 7.5%</li>
           </ul>
-          <div class="code-block">
-<span class="comment"># First trade strategy — conservative</span>
-capital_deployed = <span class="number">20</span>%   <span class="comment"># chỉ dùng 20% vốn ban đầu</span>
-min_threshold    = <span class="number">0.70</span>  <span class="comment"># chặt hơn ngưỡng thường 0.65</span>
-regime_required  = <span class="string">"BULL"</span> <span class="comment"># chỉ vào trong uptrend rõ</span>
-sl_buffer_min    = <span class="number">2.0</span>   <span class="comment"># SL cách ít nhất 2 ATR</span>
-goal = <span class="string">"xác nhận model hoạt động, không phải kiếm tiền"</span>
-          </div>
         </div>
       </div>
-
     </div>
   </div>
 
-  <!-- ═══════════════ SUMMARY ═══════════════ -->
-  <div class="summary">
-    <h2>📋 Tổng Kết Lộ Trình</h2>
+</div>
 
-    <div class="timeline">
-      <div class="timeline-col tc-blue">
-        <h3>🔵 Tuần 1 — Foundation</h3>
-        <ul>
-          <li>N1 → Label thực tế (trading goal)</li>
-          <li>N2 → Cross-sectional ranking</li>
-          <li>N3 → Regime filter (không vào khi downtrend)</li>
-          <li>N4 → Entry timing features ⭐</li>
-          <li>N5 → Backtest sơ bộ + KPI check</li>
-        </ul>
-      </div>
-      <div class="timeline-col tc-yellow">
-        <h3>🟡 Tuần 2 — Signal Quality</h3>
-        <ul>
-          <li>N6 → Foreign flow proxy từ KBS</li>
-          <li>N7 → Data logger (lịch sử tự động)</li>
-          <li>N8 → Multi-timeframe alignment</li>
-          <li>N9 → SL survival score ⭐</li>
-          <li>N10 → Probability calibration</li>
-        </ul>
-      </div>
-      <div class="timeline-col tc-red">
-        <h3>🔴 Tuần 3 — Go-Live</h3>
-        <ul>
-          <li>N11 → Daily screening report</li>
-          <li>N12 → Walk-forward backtest engine</li>
-          <li>N13 → Position sizing rules</li>
-          <li>N14 → Paper trading tracker</li>
-          <li>N15 → First real trade 🚀</li>
-        </ul>
+<!-- ═══════════ DAILY PIPELINE FLOW ═══════════ -->
+<div class="section">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#f0fdf4">🔀</div>
+    <h2>Luồng Xử Lý Hàng Ngày — 8:30 Prediction Pipeline</h2>
+  </div>
+  <p style="font-size:.83rem;color:#475569;margin-bottom:14px">Toàn bộ xử lý offline từ close hôm qua. Kết quả sẵn sàng lúc 8:45, trước ATO.</p>
+  <div class="dflow">
+    <div class="dfs"><div class="dfb">📥 OHLCV<br>close hôm qua<div class="dfs2">VCI cache</div></div></div>
+    <div class="dfa">→</div>
+    <div class="dfs"><div class="dfb">📡 S1–S6<br>Signal Gen<div class="dfs2">6 engines</div></div></div>
+    <div class="dfa">→</div>
+    <div class="dfs"><div class="dfb gate">🌍 Regime<br>Gate S3<div class="dfs2">BEAR → STOP</div></div></div>
+    <div class="dfa">→</div>
+    <div class="dfs"><div class="dfb">🤖 M3+M4<br>P_alpha cal.<div class="dfs2">calibrated</div></div></div>
+    <div class="dfa">→</div>
+    <div class="dfs"><div class="dfb gate">⚖️ SL Filter<br>D3.3<div class="dfs2">buffer&lt;1.5→skip</div></div></div>
+    <div class="dfa">→</div>
+    <div class="dfs"><div class="dfb green">🏆 TOP PICKS<br>≤ 3 mã<div class="dfs2">ranked by P</div></div></div>
+    <div class="dfa">→</div>
+    <div class="dfs"><div class="dfb purple">📋 Alert<br>8:45 AM<div class="dfs2">entry+SL+target</div></div></div>
+  </div>
+
+  <h3 style="margin:16px 0 10px;font-size:.88rem">Interface contracts giữa các layer</h3>
+  <table class="itable">
+    <thead><tr><th>Từ</th><th>Đến</th><th>Data format</th><th>Tần suất</th></tr></thead>
+    <tbody>
+      <tr><td>D0.1</td><td>S1, S2, S5</td><td><code>DataFrame[date,open,high,low,close,volume]</code> per ticker</td><td>Cache 15min</td></tr>
+      <tr><td>D0.2 (SQLite)</td><td>S4</td><td><code>DataFrame[date,ticker,foreign_buy,foreign_sell,tu_doan_net]</code></td><td>Daily 15:05</td></tr>
+      <tr><td>D0.3</td><td>S3</td><td><code>Dict{advance,decline,unchanged,ceiling,floor}</code></td><td>Mỗi phiên</td></tr>
+      <tr><td>S1–S6</td><td>M1</td><td><code>Dict[str,float]</code> normalized scores per (ticker, day)</td><td>Daily</td></tr>
+      <tr><td>M1</td><td>M3</td><td><code>DataFrame[ticker,date,f1..f35,label]</code></td><td>Weekly retrain</td></tr>
+      <tr><td>M4</td><td>D3.1–D3.5</td><td><code>Dict{ticker, p_raw, p_cal, ci_lo, ci_hi, recommendation}</code></td><td>Daily 8:30</td></tr>
+      <tr><td>D3.5</td><td>E1</td><td><code>List[AlphaPick{ticker,entry_zone,sl,target,reason,size_pct}]</code></td><td>Daily 8:45</td></tr>
+      <tr><td>E2 Logger</td><td>E4 Feedback</td><td><code>DataFrame[date,ticker,entry,exit,pnl,actual_label]</code></td><td>Per trade</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════ BUILD SEQUENCE ═══════════ -->
+<div class="section">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#fef3c7">🔨</div>
+    <h2>Trình Tự Build — Module nào trước, module nào sau</h2>
+  </div>
+  <div class="btline">
+
+    <div class="bstep">
+      <div class="bdot db">1</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#dbeafe;color:#1e40af">Sprint 1 · N1–N2</span><span class="bwk">Tuần 1</span></div>
+        <div class="btit">M2 Label redesign + S3 Market Regime Engine</div>
+        <div class="bbody">Path-dependent label (đạt target AND không chạm SL). Regime 5-state machine (BULL/BULL_WEAK/NEUTRAL/BEAR_WEAK/BEAR). Tích hợp D3.1 Regime Gate vào prediction pipeline.</div>
+        <div class="bmods"><span class="bmod" style="background:#dbeafe;color:#1e40af">M2</span><span class="bmod" style="background:#dbeafe;color:#1e40af">S3</span><span class="bmod" style="background:#dbeafe;color:#1e40af">D3.1</span></div>
       </div>
     </div>
 
-    <div class="success-factors">
-      <h3>🏆 Yếu Tố Quyết Định Thành Công (theo thứ tự ưu tiên)</h3>
-      <div class="sf-item">
-        <div class="sf-rank r1">1</div>
-        <div><strong style="color:#fca5a5">Regime Filter</strong> — Không vào lệnh long trong downtrend. Loại ~50% lệnh thua ngay từ đầu.</div>
-      </div>
-      <div class="sf-item">
-        <div class="sf-rank r2">2</div>
-        <div><strong style="color:#fdba74">Entry Timing</strong> — Vào gần support, không vào gần resistance. Tăng win rate 15–20% mà không cần model tốt hơn.</div>
-      </div>
-      <div class="sf-item">
-        <div class="sf-rank r3">3</div>
-        <div><strong style="color:#fde047">SL Survival Score</strong> — Chọn cổ phiếu không bị noise quét SL. Pain point lớn nhất của retail trader VN.</div>
-      </div>
-      <div class="sf-item">
-        <div class="sf-rank r4">4</div>
-        <div><strong style="color:#86efac">Cross-sectional Ranking</strong> — Chọn mã mạnh nhất thay vì "đang tăng". Tập trung vốn vào conviction cao nhất.</div>
-      </div>
-      <div class="sf-item">
-        <div class="sf-rank r5">5</div>
-        <div><strong style="color:#93c5fd">Foreign Flow thực</strong> — Tín hiệu mạnh nhất tại TTCK VN. Cần thời gian tích lũy data.</div>
+    <div class="bstep">
+      <div class="bdot db">2</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#dbeafe;color:#1e40af">Sprint 2 · N3–N4</span><span class="bwk">Tuần 1</span></div>
+        <div class="btit">S2 Relative Strength + S5 Entry Timing + D3.2/D3.3</div>
+        <div class="bbody">Cross-sectional rank vs VN30 và sector. Entry timing: price position in range, SL buffer ATR, suggested entry zone/SL/target. SL filter: reject khi buffer &lt; 1.5 ATR.</div>
+        <div class="bmods"><span class="bmod" style="background:#dbeafe;color:#1e40af">S2</span><span class="bmod" style="background:#dbeafe;color:#1e40af">S5</span><span class="bmod" style="background:#dbeafe;color:#1e40af">D3.2</span><span class="bmod" style="background:#dbeafe;color:#1e40af">D3.3</span></div>
       </div>
     </div>
+
+    <div class="bstep">
+      <div class="bdot db">3</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#dbeafe;color:#1e40af">Sprint 3 · N5</span><span class="bwk">Tuần 1</span></div>
+        <div class="btit">M1 Feature Builder v2 + Retrain + Backtest v1</div>
+        <div class="bbody">Tổng hợp tất cả features mới (35+). Retrain LightGBM. Walk-forward backtest sơ bộ trên 3 tháng holdout. Validate KPI minimum: win rate &gt; 45%, precision &gt; 20%.</div>
+        <div class="bmods"><span class="bmod" style="background:#dbeafe;color:#1e40af">M1 v2</span><span class="bmod" style="background:#dbeafe;color:#1e40af">M3 retrain</span><span class="bmod" style="background:#dbeafe;color:#1e40af">M5 v1</span></div>
+      </div>
+    </div>
+
+    <div class="bstep">
+      <div class="bdot dg">4</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#dcfce7;color:#166534">Sprint 4 · N6–N7</span><span class="bwk">Tuần 2</span></div>
+        <div class="btit">D0.2 Data Logger + S4 Smart Money Features</div>
+        <div class="bbody">SQLite daily logger cho KBS price board. Job 15:05 tự động. Sau 5 phiên → bật S4 features. <strong>Bắt đầu ngay hôm nay</strong> — mỗi ngày không có data = mất 1 training sample không bù được.</div>
+        <div class="bmods"><span class="bmod" style="background:#dcfce7;color:#166534">D0.2</span><span class="bmod" style="background:#dcfce7;color:#166534">D0.3</span><span class="bmod" style="background:#dcfce7;color:#166534">S4</span></div>
+      </div>
+    </div>
+
+    <div class="bstep">
+      <div class="bdot dg">5</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#dcfce7;color:#166534">Sprint 5 · N8–N9</span><span class="bwk">Tuần 2</span></div>
+        <div class="btit">S1 Wyckoff VSA Engine — Cải tiến toàn diện</div>
+        <div class="bbody">Viết lại detect_accumulation_phase(). Thêm: phase duration, volume profile, Spring quality score, LPS detection, effort-vs-result, no-supply bar, stopping volume. Unit test 10 case study thực từ chart VN.</div>
+        <div class="bmods"><span class="bmod" style="background:#dcfce7;color:#166534">S1 Wyckoff VSA</span><span class="bmod" style="background:#dcfce7;color:#166534">S6 MultiTF</span></div>
+      </div>
+    </div>
+
+    <div class="bstep">
+      <div class="bdot dg">6</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#dcfce7;color:#166534">Sprint 6 · N10</span><span class="bwk">Tuần 2</span></div>
+        <div class="btit">M4 Probability Calibration + Retrain v3 với 35+ features</div>
+        <div class="bbody">Isotonic Regression calibration. Confidence interval [ci_lo, ci_hi]. Recommendation enum. Retrain toàn bộ với features mới từ S1 VSA + S4 Smart Money. Backtest v2 — target precision ≥ 0.35.</div>
+        <div class="bmods"><span class="bmod" style="background:#dcfce7;color:#166534">M4</span><span class="bmod" style="background:#dcfce7;color:#166534">M3 v3</span><span class="bmod" style="background:#dcfce7;color:#166534">M5 v2</span></div>
+      </div>
+    </div>
+
+    <div class="bstep">
+      <div class="bdot do">7</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#ffedd5;color:#7c2d12">Sprint 7 · N11–N12</span><span class="bwk">Tuần 3</span></div>
+        <div class="btit">D3.4/D3.5 Position Sizer + Alert Generator + UI v2</div>
+        <div class="bbody">Position sizing theo conviction (P ≥ 0.70 → 30%, else 20%). Morning report card: entry zone, SL giá cụ thể, target, lý do ngắn. Regime banner. Portfolio usage tracker trên UI.</div>
+        <div class="bmods"><span class="bmod" style="background:#ffedd5;color:#7c2d12">D3.4</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">D3.5</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">E1 v2</span></div>
+      </div>
+    </div>
+
+    <div class="bstep">
+      <div class="bdot do">8</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#ffedd5;color:#7c2d12">Sprint 8 · N13–N14</span><span class="bwk">Tuần 3</span></div>
+        <div class="btit">E2 Trade Logger + E3 P&amp;L Tracker + Paper Trading Mode</div>
+        <div class="bbody">Tab nhập lệnh thủ công. Auto-track close daily → unrealized PnL. Equity curve chart. Win rate, profit factor, streak. So sánh signal P vs actual outcome → calibration data quý giá.</div>
+        <div class="bmods"><span class="bmod" style="background:#ffedd5;color:#7c2d12">E2</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">E3</span></div>
+      </div>
+    </div>
+
+    <div class="bstep">
+      <div class="bdot dr">9</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#fee2e2;color:#7f1d1d">Sprint 9 · N15</span><span class="bwk">Go-Live 🔴</span></div>
+        <div class="btit">Validate KPI → First Real Trade</div>
+        <div class="bbody">Checklist: backtest pass, regime tested, SL filter validated. Deploy 20% vốn, P_min = 0.70, SL buffer ≥ 2.0. Mục tiêu: xác nhận pipeline hoạt động đúng, không phải kiếm tiền ngay.</div>
+        <div class="bmods"><span class="bmod" style="background:#fee2e2;color:#7f1d1d">All systems</span><span class="bmod" style="background:#fee2e2;color:#7f1d1d">Conservative params</span></div>
+      </div>
+    </div>
+
+    <div class="bstep">
+      <div class="bdot dp">10</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#f3e8ff;color:#4a1d96">Sprint 10 · Tháng 2+</span><span class="bwk">Long-term</span></div>
+        <div class="btit">E4 Feedback Loop + Full Capital Deployment</div>
+        <div class="bbody">Sau 30 lệnh: cập nhật label dataset với actual outcome. Retrain model. D0.2 có 2 tháng history → S4 Smart Money features mạnh hơn nhiều. Scale vốn nếu drawdown ổn định.</div>
+        <div class="bmods"><span class="bmod" style="background:#f3e8ff;color:#4a1d96">E4</span><span class="bmod" style="background:#f3e8ff;color:#4a1d96">M3 v4+</span><span class="bmod" style="background:#f3e8ff;color:#4a1d96">S4 2m history</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════ KPI ═══════════ -->
+<div class="section">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#f0fdf4">🎯</div>
+    <h2>KPI Targets — Điều kiện cần trước go-live</h2>
+  </div>
+  <div class="kpigrid">
+    <div class="kpic"><div class="kpiv" style="color:#16a34a">≥ 50%</div><div class="kpil">Win Rate (minimum go-live)</div><span class="kpim" style="background:#dcfce7;color:#166534">Target ≥ 60%</span></div>
+    <div class="kpic"><div class="kpiv" style="color:#2563eb">≥ 1.5</div><div class="kpil">Profit Factor (win/loss)</div><span class="kpim" style="background:#dbeafe;color:#1e40af">Target ≥ 2.0</span></div>
+    <div class="kpic"><div class="kpiv" style="color:#dc2626">≤ 12%</div><div class="kpil">Max Portfolio Drawdown</div><span class="kpim" style="background:#fee2e2;color:#7f1d1d">Hard limit 15%</span></div>
+    <div class="kpic"><div class="kpiv" style="color:#f59e0b">2–4</div><div class="kpil">Avg Holding Days</div><span class="kpim" style="background:#fef3c7;color:#92400e">Tối đa 5 phiên</span></div>
+    <div class="kpic"><div class="kpiv" style="color:#8b5cf6">≥ 0.68</div><div class="kpil">CV AUC (walk-forward)</div><span class="kpim" style="background:#f3e8ff;color:#4a1d96">Hiện tại 0.644</span></div>
+    <div class="kpic"><div class="kpiv" style="color:#0891b2">≥ 0.35</div><div class="kpil">Precision @threshold</div><span class="kpim" style="background:#cffafe;color:#164e63">Hiện tại 0.11 ❌</span></div>
+    <div class="kpic"><div class="kpiv" style="color:#0f172a">≤ 3</div><div class="kpil">Consecutive losses</div><span class="kpim" style="background:#f1f5f9;color:#475569">Pause nếu vượt</span></div>
+    <div class="kpic"><div class="kpiv" style="color:#16a34a">8–15</div><div class="kpil">Trades / tháng</div><span class="kpim" style="background:#dcfce7;color:#166534">Đủ để calibrate</span></div>
+  </div>
+  <div class="warn">
+    <strong>⚠️ Precision từ 0.11 → 0.35 là bước nhảy cần thiết nhất.</strong> Đây là tác động cộng gộp của 3 thay đổi:
+    <strong>Label redesign</strong> (+8%) + <strong>Regime filter</strong> (+10%) + <strong>Entry timing filter</strong> (+8%). Ba cộng lại → +26% precision.
+    Không cần model phức tạp hơn — chỉ cần filter đúng điểm và đúng thời điểm.
+  </div>
+</div>
+
+<!-- ═══════════ RISK TABLE ═══════════ -->
+<div class="section">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#fee2e2">⚠️</div>
+    <h2>Rủi Ro Hệ Thống & Mitigation</h2>
+  </div>
+  <table class="itable">
+    <thead><tr><th>Rủi ro</th><th>Nguyên nhân</th><th>Mitigation</th><th>Module</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Model overfit</strong></td><td>Dataset nhỏ + 35 features</td><td>Walk-forward CV bắt buộc. Max depth ≤ 6. Không tune in-sample.</td><td>M3, M5</td></tr>
+      <tr><td><strong>VCI rate limit</strong></td><td>20 req/phút free tier</td><td>Rate limiter đã có. Cache 15min. SSI key → unlimited.</td><td>D0.1</td></tr>
+      <tr><td><strong>KBS data lỗi</strong></td><td>API thay đổi, downtime</td><td>Schema validation khi insert. Alert nếu thiếu data. Fallback OHLCV-only mode.</td><td>D0.2</td></tr>
+      <tr><td><strong>Wyckoff false positive</strong></td><td>Spring giả, distribution giả tích lũy</td><td>Bắt buộc S4 confirm (ngoại + tự doanh). Phase B ≥ 10 phiên. Spring vol thấp.</td><td>S1, S4</td></tr>
+      <tr><td><strong>Regime flip nhanh</strong></td><td>Gap down mạnh, BULL→BEAR trong 1 phiên</td><td>3-day confirmation trước khi flip BULL→BEAR. Không flip ngay sau 1 phiên xấu.</td><td>S3</td></tr>
+      <tr><td><strong>Slippage ATO</strong></td><td>Backtest dùng close; ATO thực khác 1–3%</td><td>Thêm 1.5% slippage trong backtest. Skip nếu gap up &gt;2% so với close hôm qua.</td><td>M5</td></tr>
+      <tr><td><strong>Liquidity thấp</strong></td><td>Volume thấp → khó execute</td><td>Filter: volume_20d_avg &gt; 1 tỷ VNĐ/ngày. Skip cổ phiếu có thanh khoản yếu.</td><td>D3.2</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════ SUMMARY ═══════════ -->
+<div class="sdark">
+  <h2>📋 Nguyên Tắc Kiến Trúc (Architecture Principles)</h2>
+  <div class="pgrid">
+    <div class="pcard"><div class="pnum">01</div><div class="ptit">Độc lập từng module</div><div class="pdesc">Mỗi Signal Engine test riêng. Thêm module không break module cũ. Interface contract cố định.</div></div>
+    <div class="pcard"><div class="pnum">02</div><div class="ptit">Zero look-ahead</div><div class="pdesc">Tất cả features dùng shift() đúng. Walk-forward CV mandatory. Không có exception.</div></div>
+    <div class="pcard"><div class="pnum">03</div><div class="ptit">Data trước, model sau</div><div class="pdesc">D0.2 logger phải chạy ngay hôm nay. Mỗi ngày không có data = mất 1 sample không bù được.</div></div>
+    <div class="pcard"><div class="pnum">04</div><div class="ptit">Hard rules không override</div><div class="pdesc">Regime BEAR = không vào. SL buffer &lt; 1.5 = không vào. Không có exception dù P cao.</div></div>
+    <div class="pcard"><div class="pnum">05</div><div class="ptit">Gate-based deployment</div><div class="pdesc">Backtest không pass → không go-live. Mỗi sprint kết thúc bằng validation.</div></div>
+    <div class="pcard"><div class="pnum">06</div><div class="ptit">Feedback liên tục</div><div class="pdesc">Mỗi trade thực tế = 1 label mới. E2 → E4 → M3 retrain. Model tự cải thiện theo thời gian.</div></div>
   </div>
 
-  <div class="watermark">
-    Alpha Signal Roadmap · smartmoney-analysic · Cập nhật: 21/05/2026
+  <div style="margin-top:20px;background:rgba(255,255,255,.07);border-radius:8px;padding:16px">
+    <h3 style="color:#fbbf24;margin-bottom:12px;font-size:.88rem">🗓️ Timeline tổng quan</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;font-size:.79rem">
+      <div style="background:rgba(59,130,246,.15);border-radius:6px;padding:10px"><div style="color:#7dd3fc;font-weight:700">Tuần 1 (N1–N5)</div><div style="color:#94a3b8;margin-top:4px">Label + Regime + Entry + Backtest v1. Precision &gt; 20%.</div></div>
+      <div style="background:rgba(34,197,94,.15);border-radius:6px;padding:10px"><div style="color:#86efac;font-weight:700">Tuần 2 (N6–N10)</div><div style="color:#94a3b8;margin-top:4px">Data Logger + Wyckoff VSA + Calibration. Precision &gt; 30%.</div></div>
+      <div style="background:rgba(249,115,22,.15);border-radius:6px;padding:10px"><div style="color:#fdba74;font-weight:700">Tuần 3 (N11–N15)</div><div style="color:#94a3b8;margin-top:4px">Alert UI + Trade Logger. Go-live 20% vốn.</div></div>
+      <div style="background:rgba(168,85,247,.15);border-radius:6px;padding:10px"><div style="color:#d8b4fe;font-weight:700">Tháng 2+</div><div style="color:#94a3b8;margin-top:4px">Feedback loop. S4 history 2m. Full capital nếu ổn định.</div></div>
+    </div>
   </div>
+</div>
+
+<div class="wmark">
+  Alpha Signal System Architecture v2.0 · smartmoney-analysic · 22/05/2026<br>
+  <span style="color:#cbd5e1">5 Layers · 14 Modules · 10 Sprints → Live Trading</span>
+</div>
 
 </div>
 </body>
