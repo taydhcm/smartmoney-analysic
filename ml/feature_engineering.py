@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from analytics.accumulation_detection import detect_accumulation_phase
+from analytics.wyckoff import detect_wyckoff
 from utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -17,6 +18,7 @@ log = get_logger(__name__)
 # ─── Canonical feature list (train + predict dùng cùng thứ tự) ────────────────
 # v2.0: Thêm 3 regime features từ S3 Market Regime Engine (adx_vn30, vn30_di_diff, regime_score)
 # v3.0: Thêm 3 smart money features từ S4 D0.2 SQLite logger (foreign_net_pct, foreign_trend, smart_money_score)
+# v5.0: Thêm 5 Wyckoff VSA features từ S1 engine v2.0 (Sprint 5) — accumulation_score nay dùng wyckoff_score
 FEATURE_COLS: list[str] = [
     # Return
     "return_1d",
@@ -56,6 +58,12 @@ FEATURE_COLS: list[str] = [
     "foreign_net_pct",    # TB 5 phiên: foreign net / total vol [-1, +1]
     "foreign_trend",      # Slope of foreign net pct [-1, +1]
     "smart_money_score",  # Composite D0.2 score [-1, +1]
+    # S1 Wyckoff VSA features v2.0 (v5.0, Sprint 5) — rolling 20-bar windows
+    "spring_quality",     # Chất lượng Spring pattern [0, 1]
+    "lps_detected",       # Last Point of Support có hiện diện [0/1]
+    "effort_vs_result",   # Effort (vol) vs Result (price) [-1, +1]
+    "no_supply_count",    # Tỷ lệ no-supply bars trong 10 phiên [0, 1]
+    "stopping_volume",    # Stopping Volume / Selling Climax [0/1]
 ]
 
 
@@ -118,28 +126,40 @@ def _pull_push_score(df: pd.DataFrame, window: int = 5) -> pd.Series:
     return ((up_roll - down_roll) / total).fillna(0.0)
 
 
-def _rolling_accumulation(df: pd.DataFrame, window: int = 20) -> pd.Series:
+def _rolling_wyckoff(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
     """
-    Rolling Wyckoff accumulation score (0–1) dùng cửa sổ trượt.
-    Tránh look-ahead: cửa sổ kết thúc tại row hiện tại.
+    Rolling Wyckoff/VSA sub-signals (no look-ahead bias).
+    Cửa sổ window bar kết thúc tại row hiện tại.
+
+    Returns DataFrame với cột:
+      accumulation_score, spring_quality, lps_detected,
+      effort_vs_result, no_supply_count, stopping_volume
     """
-    phase_scores = {
-        "phase_d":     1.0,
-        "phase_c":     0.8,
-        "phase_b":     0.6,
-        "none":        0.3,
-        "distribution": 0.0,
-        None:          0.3,
-    }
-    scores: list[float] = []
+    cols = [
+        "accumulation_score",  # = wyckoff_score
+        "spring_quality",
+        "lps_detected",
+        "effort_vs_result",
+        "no_supply_count",
+        "stopping_volume",
+    ]
+    rows: list[dict] = []
     for i in range(len(df)):
         if i < window - 1:
-            scores.append(np.nan)
+            rows.append({c: np.nan for c in cols})
         else:
             win_df = df.iloc[i - window + 1 : i + 1].copy()
-            phase  = detect_accumulation_phase(win_df)
-            scores.append(phase_scores.get(phase, 0.3))
-    return pd.Series(scores, index=df.index)
+            wr = detect_wyckoff(win_df)
+            rows.append({
+                "accumulation_score": wr.wyckoff_score,
+                "spring_quality":     wr.spring_quality,
+                "lps_detected":       float(wr.lps_detected),
+                "effort_vs_result":   wr.effort_vs_result,
+                # normalize no_supply_count [0,1]: 4 bars / 10-bar window = 40% threshold
+                "no_supply_count":    min(1.0, wr.no_supply_count / max(1, 4)),
+                "stopping_volume":    float(wr.stopping_volume),
+            })
+    return pd.DataFrame(rows, index=df.index)
 
 
 # ── Main feature builder ───────────────────────────────────────────────────────
@@ -218,9 +238,17 @@ def compute_stock_features(
     out["lower_shadow"] = (lower  / candle_range).clip(0, 1)
 
     # ── Smart money proxies ────────────────────────────────────────────────────
-    out["divergence_score"]    = _divergence_score(close, volume)
-    out["pull_push_score"]     = _pull_push_score(df)
-    out["accumulation_score"]  = _rolling_accumulation(df, window=20)
+    out["divergence_score"] = _divergence_score(close, volume)
+    out["pull_push_score"]  = _pull_push_score(df)
+
+    # ── S1 Wyckoff VSA rolling signals (v5.0) ─────────────────────────────────
+    _wyk = _rolling_wyckoff(df, window=20)
+    out["accumulation_score"] = _wyk["accumulation_score"]
+    out["spring_quality"]     = _wyk["spring_quality"]
+    out["lps_detected"]       = _wyk["lps_detected"]
+    out["effort_vs_result"]   = _wyk["effort_vs_result"]
+    out["no_supply_count"]    = _wyk["no_supply_count"]
+    out["stopping_volume"]    = _wyk["stopping_volume"]
 
     # ── Market / VN30 features ─────────────────────────────────────────────────
     if vn30_df is not None and not vn30_df.empty:

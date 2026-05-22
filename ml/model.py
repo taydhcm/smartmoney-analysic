@@ -39,7 +39,7 @@ META_PATH      = _ARTIFACTS_DIR / "alpha_meta.pkl"
 # ── Model versioning ────────────────────────────────────────────────────────────
 # Tăng khi thay đổi: label definition, feature list, hoặc training schema.
 # Artifact có version khác → bị reject tự động trong load_model().
-MODEL_LABEL_VERSION = "v3_smart_money"   # v3.0: +3 S4 smart money features (27 total)
+MODEL_LABEL_VERSION = "v4_wyckoff"   # v4.0: +5 S1 Wyckoff VSA features (32 total)
 
 
 # ── Model factory ──────────────────────────────────────────────────────────────

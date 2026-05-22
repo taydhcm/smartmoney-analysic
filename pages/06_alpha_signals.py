@@ -676,6 +676,59 @@ if do_predict or "alpha_picks" in st.session_state:
                     else:
                         st.info(f"⚪ Dòng tiền ngoại **trung tính** — {_sm_sessions} phiên data")
 
+                # ── S1 Wyckoff VSA card (v2.0, Sprint 5) ─────────────────────
+                _wyk = pick.get("wyckoff") or {}
+                if _wyk:
+                    _PHASE_BADGE = {
+                        "phase_d": "📈 Phase D — Markup",
+                        "phase_c": "🌀 Phase C — Spring",
+                        "phase_b": "🔲 Phase B — Accumulation",
+                        "distribution": "🔴 Distribution",
+                        "none": "⬜ Chưa xác định",
+                    }
+                    st.markdown("---")
+                    st.markdown("**🔬 Wyckoff VSA (S1 v2.0)**")
+                    _w_cols = st.columns(4)
+                    _wyk_score   = _wyk.get("wyckoff_score", 0.0)
+                    _spring_q    = _wyk.get("spring_quality", 0.0)
+                    _evr         = _wyk.get("effort_vs_result", 0.0)
+                    _no_sup      = _wyk.get("no_supply_count", 0.0)
+                    _lps_ok      = _wyk.get("lps_detected", False)
+                    _stop_v      = _wyk.get("stopping_volume", False)
+                    _w_cols[0].metric(
+                        "Wyckoff Score", f"{_wyk_score:.2f}",
+                        help="Composite [0,1]: phase + spring + LPS + EVR + no-supply"
+                    )
+                    _w_cols[1].metric(
+                        "Spring Quality", f"{_spring_q:.2f}",
+                        help="Chất lượng Spring [0,1]: penetration nhỏ, vol thấp, hồi nhanh"
+                    )
+                    _w_cols[2].metric(
+                        "Effort/Result", f"{_evr:+.2f}",
+                        help="Dương = demand mạnh; Âm = supply hấp thụ"
+                    )
+                    _w_cols[3].metric(
+                        "No-Supply", f"{_no_sup:.0%}",
+                        help="Tỷ lệ no-supply bar trong 10 phiên gần nhất"
+                    )
+                    _wyk_badges = []
+                    if _lps_ok:
+                        _wyk_badges.append("✅ LPS confirmed")
+                    if _stop_v:
+                        _wyk_badges.append("🛑 Stopping Volume")
+                    if _wyk_score >= 0.75:
+                        st.success(
+                            "🔬 Wyckoff mạnh: " + (" | ".join(_wyk_badges) if _wyk_badges else "Phase tích lũy rõ ràng")
+                        )
+                    elif _wyk_score >= 0.55:
+                        st.info(
+                            "🔬 Wyckoff trung bình: " + (" | ".join(_wyk_badges) if _wyk_badges else "Đang trong vùng tích lũy")
+                        )
+                    else:
+                        st.caption(
+                            "🔬 Wyckoff yếu / chưa rõ. " + (" | ".join(_wyk_badges) if _wyk_badges else "")
+                        )
+
                 # Output JSON (compact)
                 with st.expander("🔎 Raw JSON", expanded=False):
                     st.code(
@@ -692,6 +745,7 @@ if do_predict or "alpha_picks" in st.session_state:
                                 "vc":              _vc,
                                 "sizing":          _sz,
                                 "sm":              _sm,
+                                "wyckoff":         _wyk,
                             },
                             ensure_ascii=False,
                             indent=2,

@@ -167,6 +167,12 @@ def predict_today(
             pp_score  = float(last.get("pull_push_score", 0.0) or 0.0)
             rel_str   = float(last.get("relative_strength", 0.0) or 0.0)
             ret_1d    = float(last.get("return_1d", 0.0) or 0.0)
+            # S1 Wyckoff VSA v2.0 features
+            spring_q  = float(last.get("spring_quality",   0.0) or 0.0)
+            lps_det   = float(last.get("lps_detected",     0.0) or 0.0)
+            evr       = float(last.get("effort_vs_result", 0.0) or 0.0)
+            no_sup    = float(last.get("no_supply_count",  0.0) or 0.0)
+            stop_vol  = float(last.get("stopping_volume",  0.0) or 0.0)
 
             # Loại overbought (RSI > threshold)
             if rsi > max_rsi:
@@ -184,7 +190,7 @@ def predict_today(
                 "ticker":             ticker,
                 "probability":        round(prob, 4),
                 "expected_return":    _estimate_return(prob),
-                "pattern":            _describe_pattern(acc_score, div_score, pp_score),
+                "pattern":            _describe_pattern(acc_score, div_score, pp_score, spring_q, lps_det),
                 "confidence":         _confidence_label(prob),
                 "rsi":                round(rsi, 1),
                 "volume_ratio_5d":    round(vol_ratio, 2),
@@ -193,6 +199,15 @@ def predict_today(
                 "accumulation_score": round(acc_score, 3),
                 "divergence_score":   round(div_score, 3),
                 "pull_push_score":    round(pp_score, 3),
+                # S1 Wyckoff VSA v2.0
+                "wyckoff": {
+                    "wyckoff_score":    round(acc_score, 3),
+                    "spring_quality":   round(spring_q, 3),
+                    "lps_detected":     bool(lps_det > 0.5),
+                    "effort_vs_result": round(evr, 3),
+                    "no_supply_count":  round(no_sup, 3),
+                    "stopping_volume":  bool(stop_vol > 0.5),
+                },
                 "regime":             regime_dict,                # D3.1 context
                 "_rs_info":           rs_info,                    # internal, removed below
             })
@@ -345,9 +360,16 @@ def get_feature_importance() -> dict[str, float]:
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _describe_pattern(acc: float, div: float, pp: float) -> str:
-    """Mô tả pattern bằng tiếng Việt."""
+def _describe_pattern(acc: float, div: float, pp: float,
+                      spring_q: float = 0.0, lps: float = 0.0) -> str:
+    """Mô tả pattern bằng tiếng Việt (S1 Wyckoff v2.0 + OHLCV proxy)."""
     parts: list[str] = []
+    if spring_q >= 0.60:
+        parts.append("Spring chất lượng cao")
+    elif spring_q >= 0.30:
+        parts.append("Spring detected")
+    if lps > 0.5:
+        parts.append("LPS confirmed")
     if acc >= 0.75:
         parts.append("tích lũy Wyckoff mạnh")
     elif acc >= 0.55:

@@ -1,6 +1,6 @@
 """
 ml/__init__.py
-Alpha Signal ML package — v3.0
+Alpha Signal ML package — v4.0
 """
 
 from .feature_engineering import FEATURE_COLS, compute_stock_features
@@ -13,6 +13,7 @@ from .volume_confirmation import VolumeConfirmation, compute_volume_confirmation
 from .portfolio_sizing import PositionSize, compute_position_size
 from .backtest import BacktestResult, run_backtest
 from .smart_money import SmartMoneySignal, compute_smart_money, compute_smart_money_features
+from analytics.wyckoff import WyckoffResult, detect_wyckoff
 
 __all__ = [
     # feature engineering
@@ -53,4 +54,7 @@ __all__ = [
     "SmartMoneySignal",
     "compute_smart_money",
     "compute_smart_money_features",
+    # S1 Wyckoff VSA v2.0 (Sprint 5)
+    "WyckoffResult",
+    "detect_wyckoff",
 ]

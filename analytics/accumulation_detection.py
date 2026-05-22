@@ -2,6 +2,9 @@
 analytics/accumulation_detection.py
 Phát hiện mẫu tích lũy/phân phối theo lý thuyết Wyckoff và Volume Spread Analysis.
 Tất cả logic dựa trên OHLCV – không cần API bổ sung.
+
+Sprint 5: detect_accumulation_phase() nay delegate sang analytics.wyckoff.detect_wyckoff()
+để dùng engine Wyckoff/VSA toàn diện.
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from utils.logger import get_logger
+from analytics.wyckoff import detect_wyckoff
 
 log = get_logger(__name__)
 
@@ -23,61 +27,15 @@ def _rolling_std_ratio(series: pd.Series, window: int = 10) -> pd.Series:
 
 def detect_accumulation_phase(df: pd.DataFrame) -> str | None:
     """
-    Phát hiện phase tích lũy Wyckoff đơn giản.
-    Trả về: 'phase_b' | 'phase_c' | 'phase_d' | 'distribution' | 'none'
+    Phát hiện phase tích lũy Wyckoff — wrapper sang WyckoffResult.detect_wyckoff().
+    Trả về: 'phase_b' | 'phase_c' | 'phase_d' | 'distribution' | 'none' | None
 
-    Logic:
-    - Phase B: Giá dao động trong range, volume giảm dần → tích lũy lặng lẽ
-    - Phase C (Spring): Giá phá đáy ngắn rồi hồi phục ngay, volume thấp
-    - Phase D: Giá bắt đầu bứt phá, volume tăng, các đợt pullback nhỏ
-    - Distribution: Giá cao, volume tăng nhưng giá không tăng → phân phối
+    Sprint 5: Đã dùng engine Wyckoff/VSA v2.0 toàn diện, bao gồm:
+      Spring quality, LPS, effort-vs-result, no-supply bar, stopping volume.
     """
-    if df.empty or len(df) < 10:
+    if df is None or df.empty or len(df) < 10:
         return None
-
-    df = df.copy()
-    close = df["close"]
-    volume = df["volume"]
-    high = df["high"]
-    low  = df["low"]
-
-    n = len(df)
-    half = n // 2
-
-    # Các chỉ số cơ bản
-    price_range_ratio  = (close.max() - close.min()) / close.mean()  # range tương đối
-    vol_trend          = np.polyfit(range(n), volume.fillna(0), 1)[0]  # slope volume
-    price_trend        = np.polyfit(range(n), close.fillna(close.mean()), 1)[0]
-    recent_vol_mean    = volume.tail(5).mean()
-    overall_vol_mean   = volume.mean()
-    vol_contraction    = recent_vol_mean < overall_vol_mean * 0.7
-
-    last_close    = close.iloc[-1]
-    period_low    = low.min()
-    period_high   = high.max()
-    near_low      = last_close < period_low * 1.05
-    near_high     = last_close > period_high * 0.95
-
-    # Phase D: giá đang tăng, volume tăng
-    if price_trend > 0 and vol_trend > 0 and near_high:
-        return "phase_d"
-
-    # Phase C (Spring): giá test đáy với volume thấp rồi hồi
-    if near_low and vol_contraction and price_range_ratio < 0.15:
-        # Kiểm tra nếu có recovery sau khi chạm đáy
-        recent_recovery = close.tail(3).mean() > close.iloc[-4] if n > 4 else False
-        if recent_recovery:
-            return "phase_c"
-
-    # Phase B: range hẹp, volume thu hẹp, không trending mạnh
-    if price_range_ratio < 0.12 and vol_contraction and abs(price_trend) < close.mean() * 0.001:
-        return "phase_b"
-
-    # Distribution: giá cao + volume cao nhưng giá không tiếp tục tăng
-    if near_high and vol_trend > 0 and price_trend <= 0:
-        return "distribution"
-
-    return "none"
+    return detect_wyckoff(df).phase
 
 
 def detect_volume_climax(df: pd.DataFrame) -> list[int]:
