@@ -991,7 +991,7 @@ if model_exists() and "alpha_dataset" in st.session_state:
                 )
 
         # By-confidence breakdown
-        if _bt.by_confidence is not None and not _bt.by_confidence.empty:
+        if _bt.by_confidence is not None and len(_bt.by_confidence) > 0:
             with st.expander("📋 Kết quả theo ngưỡng xác suất", expanded=False):
                 st.dataframe(_bt.by_confidence, use_container_width=True)
 
