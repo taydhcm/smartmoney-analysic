@@ -1,6 +1,6 @@
 """
 ml/__init__.py
-Alpha Signal ML package — v9.0 (Sprint 10: Go-Live Validator)
+Alpha Signal ML package — v10.0 (Sprint 11: Scale Advisor + System Monitor)
 """
 
 from .feature_engineering import FEATURE_COLS, compute_stock_features
@@ -44,6 +44,20 @@ from .go_live_checker import (
     CheckResult,
     GoLiveStatus,
     run_go_live_checks,
+)
+from .scale_advisor import (
+    ScaleDecision,
+    ConditionResult,
+    SCALE_STAGES,
+    compute_scale_recommendation,
+    check_scale_conditions,
+)
+from .monitor import (
+    HealthStatus,
+    run_daily_health_check,
+    check_d02_history_depth,
+    check_retrain_schedule,
+    check_milestone_progress,
 )
 from .backtest import BacktestResult, run_backtest
 from .smart_money import SmartMoneySignal, compute_smart_money, compute_smart_money_features
@@ -130,4 +144,16 @@ __all__ = [
     "CheckResult",
     "GoLiveStatus",
     "run_go_live_checks",
+    # Sprint 11: Scale Advisor
+    "ScaleDecision",
+    "ConditionResult",
+    "SCALE_STAGES",
+    "compute_scale_recommendation",
+    "check_scale_conditions",
+    # Sprint 11: System Monitor
+    "HealthStatus",
+    "run_daily_health_check",
+    "check_d02_history_depth",
+    "check_retrain_schedule",
+    "check_milestone_progress",
 ]
