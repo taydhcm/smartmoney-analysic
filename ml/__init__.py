@@ -1,6 +1,6 @@
 """
 ml/__init__.py
-Alpha Signal ML package — v7.0 (Sprint 8: E5 Outcome Tracker + E3 P&L Tracker)
+Alpha Signal ML package — v8.0 (Sprint 9: E6 Rolling Calibrator)
 """
 
 from .feature_engineering import FEATURE_COLS, compute_stock_features
@@ -28,6 +28,16 @@ from .outcome_tracker import (
 )
 from .pnl_tracker import (
     compute_trade_pnl, compute_equity_curve, compute_stats, compute_win_streak,
+)
+from .rolling_calibrator import (
+    get_calibration_data,
+    fit_rolling_calibrator,
+    load_rolling_calibrator,
+    apply_rolling_calibration,
+    get_calibrator_status,
+    needs_weekly_refit,
+    ROLLING_CALIBRATOR_PATH,
+    ROLLING_META_PATH,
 )
 from .backtest import BacktestResult, run_backtest
 from .smart_money import SmartMoneySignal, compute_smart_money, compute_smart_money_features
@@ -100,4 +110,13 @@ __all__ = [
     "compute_equity_curve",
     "compute_stats",
     "compute_win_streak",
+    # E6 Rolling Calibrator (Sprint 9)
+    "get_calibration_data",
+    "fit_rolling_calibrator",
+    "load_rolling_calibrator",
+    "apply_rolling_calibration",
+    "get_calibrator_status",
+    "needs_weekly_refit",
+    "ROLLING_CALIBRATOR_PATH",
+    "ROLLING_META_PATH",
 ]

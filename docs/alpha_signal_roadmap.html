@@ -186,7 +186,7 @@ code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2
       <span style="background:#166534;color:#86efac;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S6 ✅</span>
       <span style="background:#166534;color:#bbf7d0;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S7 ✅</span>
       <span style="background:#166534;color:#bbf7d0;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S8 ✅</span>
-      <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S9 🧠</span>
+      <span style="background:#166534;color:#bbf7d0;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S9 ✅</span>
       <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S10 ○</span>
       <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S11 ○</span>
     </div>
@@ -263,11 +263,11 @@ code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2
     <div class="layer-hdr">🚀 Layer 4 — Execution &amp; Feedback <span>· UI · Trade tracking · Hybrid Self-Learning</span></div>
     <div class="layer-body">
       <div class="mod"><div class="mid">E1</div><div class="mname">Daily Screening UI</div><div class="mdesc">Streamlit. Top picks, probability bars, entry card đầy đủ (SL/target/reason).</div><span class="mst st-done">✓ Base xong</span></div>
-      <div class="mod"><div class="mid">E2</div><div class="mname">Trade Logger</div><div class="mdesc">Nhập tay: mã, giá vào, size. Paper + real trade cùng UI.</div><span class="mst st-todo">○ Tuần 3</span></div>
-      <div class="mod"><div class="mid">E3</div><div class="mname">P&amp;L Tracker</div><div class="mdesc">Auto-track close price daily. Unrealized/realized PnL. Win rate, streak, equity curve.</div><span class="mst st-todo">○ Tuần 3</span></div>
-      <div class="mod"><div class="mid">E4</div><div class="mname">Hybrid Feedback</div><div class="mdesc">Bi-weekly LightGBM retrain + E5 Outcome Tracker + E6 Rolling Calibrator. Drift alert khi precision suy giảm.</div><span class="mst st-todo">○ Sprint 8–9</span></div>
+      <div class="mod"><div class="mid">E2</div><div class="mname">Trade Logger</div><div class="mdesc">Nhập tay: mã, giá vào, size. Paper + real trade cùng UI.</div><span class="mst st-done">✅ Sprint 8</span></div>
+      <div class="mod"><div class="mid">E3</div><div class="mname">P&amp;L Tracker</div><div class="mdesc">Auto-track close price daily. Unrealized/realized PnL. Win rate, streak, equity curve.</div><span class="mst st-done">✅ Sprint 8</span></div>
+      <div class="mod"><div class="mid">E4</div><div class="mname">Hybrid Feedback</div><div class="mdesc">Bi-weekly LightGBM retrain + E5 Outcome Tracker + E6 Rolling Calibrator. Drift alert khi precision suy giảm.</div><span class="mst st-done">✅ Sprint 8–9</span></div>
       <div class="mod"><div class="mid">E5</div><div class="mname">Outcome Tracker</div><div class="mdesc">SQLite signal_log.db. Auto-check T+5 daily 15:15. actual_return + hit_target per signal.</div><span class="mst st-done">✅ Sprint 8</span></div>
-      <div class="mod"><div class="mid">E6</div><div class="mname">Rolling Calibrator</div><div class="mdesc">IsotonicRegression re-fit trên 90 outcomes gần nhất / tuần. Drift &lt; 0.30 × 10 ngày → alert.</div><span class="mst st-todo">○ Sprint 9</span></div>
+      <div class="mod"><div class="mid">E6</div><div class="mname">Rolling Calibrator</div><div class="mdesc">IsotonicRegression re-fit trên 90 outcomes gần nhất / tuần. Drift &lt; 0.30 × 10 ngày → alert.</div><span class="mst st-done">✅ Sprint 9</span></div>
     </div>
   </div>
 </div>
@@ -623,11 +623,11 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
 
     <div class="bstep">
       <div class="bdot dteal">9</div>
-      <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#ccfbf1;color:#0f766e">Sprint 9 · N15–N16</span><span class="bwk">Tuần 4</span></div>
+      <div class="bcard bcard-done">
+        <div class="bch"><span class="btag" style="background:#ccfbf1;color:#0f766e">Sprint 9 · N15–N16</span><span class="bdone">✅ Hoàn thành</span><span class="bwk">Tuần 4</span></div>
         <div class="btit">E6 Hybrid Self-Learning: Rolling Calibration + Drift Alert (Bước 3–4)</div>
-        <div class="bbody"><strong>Hybrid 4-bước</strong>: (1) Giữ LightGBM batch — retrain 2 tuần/lần bằng <code>retrain_v5.py</code>. (2) E5 Outcome Tracker cung cấp signal→T+5 data. (3) <strong>E6 Rolling IsotonicRegression</strong>: re-fit calibrator trên 90 outcomes gần nhất mỗi tuần — <code>alpha_calibrator.pkl</code> tự thích nghi. (4) <strong>Drift Alert</strong>: rolling precision &lt; 0.30 trong 10 ngày liên tiếp → banner đỏ trên UI → manual retrain.</div>
-        <div class="bmods"><span class="bmod" style="background:#ccfbf1;color:#0f766e">E6</span><span class="bmod" style="background:#ccfbf1;color:#0f766e">Rolling Calibrator</span><span class="bmod" style="background:#ccfbf1;color:#0f766e">Drift Alert</span><span class="bmod" style="background:#ccfbf1;color:#0f766e">Bi-weekly Retrain</span></div>
+        <div class="bbody"><strong>Hybrid 4-bước</strong>: (1) LightGBM batch retrain 2 tuần/lần. (2) E5 Outcome Tracker → T+5 data. (3) <strong>E6 Rolling IsotonicRegression</strong>: re-fit trên 90 outcomes gần nhất mỗi tuần — <code>alpha_calibrator_rolling.pkl</code> tự thích nghi. (4) <strong>Drift Alert</strong>: rolling precision &lt; 0.30 × n≥10 → banner đỏ → manual retrain. <strong>69/69 tests passed</strong>.</div>
+        <div class="bmods"><span class="bmod" style="background:#dcfce7;color:#166534">E6</span><span class="bmod" style="background:#dcfce7;color:#166534">Rolling Calibrator</span><span class="bmod" style="background:#dcfce7;color:#166534">Drift Alert</span><span class="bmod" style="background:#dcfce7;color:#166534">apply_rolling_calibration()</span></div>
       </div>
     </div>
 
