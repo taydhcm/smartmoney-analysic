@@ -26,6 +26,7 @@ from ml.model import MODEL_LABEL_VERSION, META_PATH, MODEL_PATH, is_model_compat
 from ml.backtest import run_backtest
 from ml.predictor import get_current_regime, get_feature_importance, predict_all, predict_today
 from ml.regime import RegimeState
+from ml.alert_generator import generate_morning_report, compute_portfolio_usage
 
 st.set_page_config(page_title="Alpha Signals", layout="wide")
 
@@ -426,6 +427,26 @@ if do_predict or "alpha_picks" in st.session_state:
     all_df     = st.session_state.get("alpha_all_df")
     saved_prob = st.session_state.get("alpha_min_prob", min_prob)
 
+    # ── 4b: Portfolio Usage Tracker sidebar (Sprint 7) ────────────────────────
+    _alerts_sidebar = generate_morning_report(picks, capital=portfolio_capital_vnd)
+    _regime_max_pos = (_regime.max_positions if _regime is not None else 5)
+    _usage = compute_portfolio_usage(_alerts_sidebar, _regime_max_pos, portfolio_capital_vnd)
+    with st.sidebar:
+        st.divider()
+        st.markdown("**📊 Portfolio Usage (Sprint 7)**")
+        _u_c1, _u_c2 = st.columns(2)
+        _u_c1.metric("Deployed", f"{_usage.total_allocated_pct:.0%}")
+        _u_c2.metric("Remaining", f"{_usage.remaining_pct:.0%}")
+        st.progress(
+            min(_usage.total_allocated_pct, 1.0),
+            text=f"{_usage.picks_count}/{_usage.max_positions} vị thế",
+        )
+        if portfolio_capital_vnd > 0:
+            st.caption(f"Deployed: {_usage.capital_deployed_vnd:,.0f} VND")
+            st.caption(f"Còn lại:  {_usage.capital_remaining_vnd:,.0f} VND")
+        if _usage.is_full:
+            st.warning("⚠️ Đã đủ vị thế theo regime")
+
     # ─────────────────────────────────────────────────────────────────────────
     # SECTION 3 — Top Alpha Picks
     # ─────────────────────────────────────────────────────────────────────────
@@ -439,6 +460,23 @@ if do_predict or "alpha_picks" in st.session_state:
         )
     else:
         st.caption(f"Tìm thấy **{len(picks)}** alpha picks hôm nay")
+
+        # ── 4a: Regime Banner (full-width, Sprint 7) ────────────────────────────
+        if _regime is not None:
+            _ri2 = _regime.as_dict()
+            _banner_msg = (
+                f"{_regime.emoji} **Regime: {_ri2['regime']} — {_ri2['regime_label']}**  |  "
+                f"Max vị thế: **{_ri2['max_positions']}**  |  P_min: **{_ri2['min_prob']}**\n\n"
+                f"_{_ri2['reason']}_"
+            )
+            if _regime.state == RegimeState.BEAR:
+                st.error(_banner_msg)
+            elif _regime.state == RegimeState.BULL:
+                st.success(_banner_msg)
+            elif _regime.state in (RegimeState.BEAR_WEAK,):
+                st.warning(_banner_msg)
+            else:
+                st.info(_banner_msg)
 
         # ── Probability bar chart ──────────────────────────────────────────────
         picks_df = pd.DataFrame(picks)
@@ -483,6 +521,69 @@ if do_predict or "alpha_picks" in st.session_state:
             paper_bgcolor="rgba(0,0,0,0)",
         )
         st.plotly_chart(fig_bar, use_container_width=True)
+
+        # ── 4c: Morning Report Cards (D3.5, Sprint 7) ─────────────────────────
+        if _alerts_sidebar:
+            st.subheader("🌅 Morning Report — Alert Cards")
+            st.caption(
+                f"Conviction sizing: P≥0.70 → 30% | P<0.70 → 20% | "
+                f"Regime cap: 1/{_regime_max_pos}"
+            )
+            for _card in _alerts_sidebar:
+                with st.container(border=True):
+                    _hdr_col, _size_col = st.columns([3, 1])
+                    with _hdr_col:
+                        st.markdown(f"### {_card.ticker}  —  {_card.recommendation}")
+                        st.caption(
+                            f"P_cal: **{_card.p_calibrated:.1%}**  |  "
+                            f"CI [{_card.ci_lo:.1%}–{_card.ci_hi:.1%}]  |  "
+                            f"{_card.reason}"
+                        )
+                    with _size_col:
+                        _conviction_label = "🔥 HIGH" if _card.position_size_pct >= 0.30 else "📌 STD"
+                        st.metric(
+                            "Conviction Size",
+                            f"{_card.position_size_pct:.0%}",
+                            delta=_conviction_label,
+                            delta_color="normal",
+                        )
+                        if portfolio_capital_vnd > 0 and _card.position_size_vnd > 0:
+                            st.caption(f"{_card.position_size_vnd:,.0f} VND")
+                            if _card.shares > 0:
+                                st.caption(f"≈ {_card.shares:,} cổ phiếu")
+                    # Price levels
+                    _ec1, _ec2, _ec3 = st.columns(3)
+                    _ec1.metric(
+                        "Entry Zone",
+                        f"{_card.entry_lo:,.0f}–{_card.entry_hi:,.0f}",
+                    )
+                    _ec2.metric(
+                        "Stop-Loss",
+                        f"{_card.sl_price:,.0f}",
+                        delta=f"−{_card.sl_pct:.1%}",
+                        delta_color="inverse",
+                    )
+                    _ec3.metric(
+                        "Target",
+                        f"{_card.target_price:,.0f}",
+                        delta=f"R:R 1:{_card.rr_ratio:.1f}",
+                    )
+                    # Copyable alert text
+                    _alert_text = (
+                        f"[ALERT] {_card.ticker} {_card.date}\n"
+                        f"Entry: {_card.entry_lo:,.0f}–{_card.entry_hi:,.0f}\n"
+                        f"SL: {_card.sl_price:,.0f} (−{_card.sl_pct:.1%})\n"
+                        f"Target: {_card.target_price:,.0f}  R:R 1:{_card.rr_ratio:.1f}\n"
+                        f"Size: {_card.position_size_pct:.0%}"
+                        + (
+                            f" ({_card.position_size_vnd:,.0f} VND, {_card.shares} cp)"
+                            if _card.shares > 0 else ""
+                        ) + "\n"
+                        f"P_cal: {_card.p_calibrated:.1%}  [{_card.ci_lo:.1%}–{_card.ci_hi:.1%}]\n"
+                        f"Lý do: {_card.reason}"
+                    )
+                    with st.expander("📋 Copy Alert Text"):
+                        st.code(_alert_text, language=None)
 
         # ── Picks cards ────────────────────────────────────────────────────────
         st.subheader("📋 Chi Tiết Alpha Picks")

@@ -102,7 +102,7 @@ code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2
 
 /* ── Build timeline ── */
 .btline{position:relative;padding-left:34px}
-.btline::before{content:'';position:absolute;left:11px;top:0;bottom:0;width:2px;background:linear-gradient(to bottom,var(--blue),var(--green),var(--orange),var(--red),#a855f7)}
+.btline::before{content:'';position:absolute;left:11px;top:0;bottom:0;width:2px;background:linear-gradient(to bottom,var(--blue),var(--green),var(--orange),#0d9488,var(--red),#a855f7)}
 .bstep{position:relative;margin-bottom:20px}
 .bdot{position:absolute;left:-29px;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.63rem;font-weight:800;color:#fff;top:3px}
 .db{background:var(--blue-d)} .dg{background:var(--green-d)} .do{background:var(--orange)} .dr{background:var(--red)} .dp{background:#7c3aed}
@@ -142,6 +142,21 @@ code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2
 /* ── Orange warning box ── */
 .warn{background:#fff7ed;border-left:3px solid #f97316;border-radius:0 6px 6px 0;padding:11px 15px;font-size:.83rem;color:#7c2d12;margin-top:14px}
 .warn strong{color:#ea580c}
+
+/* ── Sprint status badges ── */
+.bdone{font-size:.63rem;font-weight:700;padding:2px 9px;border-radius:10px;background:#dcfce7;color:#166534;margin-left:6px}
+.bcurrent{font-size:.63rem;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#92400e;margin-left:6px;border:1px solid #f59e0b}
+.bcard-done{border-color:#bbf7d0!important;background:linear-gradient(to right,#f0fdf4,#fff)!important}
+.bcard-current{border-color:#f59e0b!important;background:linear-gradient(to right,#fffbeb,#fff)!important}
+.dteal{background:#0d9488}
+
+/* ── Hybrid Self-Learning section ── */
+.hybrid-box{background:linear-gradient(135deg,#0f172a,#0f4c75,#134e4a);border-radius:var(--r);padding:28px;color:#e2e8f0;margin:14px 0}
+.hstep{display:flex;gap:14px;align-items:flex-start;margin-bottom:18px}
+.hstep:last-child{margin-bottom:0}
+.hnum{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.88rem;flex-shrink:0;color:#fff}
+.hcontent h4{color:#fff;font-size:.88rem;margin-bottom:5px}
+.hcontent p{font-size:.8rem;color:#94a3b8;line-height:1.55}
 </style>
 </head>
 <body>
@@ -149,15 +164,32 @@ code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2
 
 <!-- ═══════════ HERO ═══════════ -->
 <div class="hero">
-  <h1>🏗️ Alpha Signal System v2.0<br><em>Kiến Trúc Modular → Thực Chiến TTCK Việt Nam</em></h1>
-  <p class="meta">Phiên bản 2.0 · Kiến trúc sư hệ thống · Cập nhật: 22/05/2026 · Thay thế Roadmap v1</p>
+  <h1>🏗️ Alpha Signal System v3.0<br><em>Kiến Trúc Modular + Hybrid Self-Learning → TTCK Việt Nam</em></h1>
+  <p class="meta">Phiên bản 3.0 · Cập nhật: 25/05/2026 · Sprint 1–6 ✅ 100% · Hybrid Self-Learning Added</p>
   <div class="pills">
     <span class="pill" style="background:rgba(251,191,36,.15);color:#fbbf24;border-color:#fbbf24">🏹 Target +5–10% / trade</span>
     <span class="pill" style="background:rgba(239,68,68,.15);color:#fca5a5;border-color:#fca5a5">🛡 Stop-Loss –5% cứng</span>
     <span class="pill" style="background:rgba(34,197,94,.15);color:#86efac;border-color:#86efac">📅 Hold tối đa 5 phiên</span>
     <span class="pill" style="background:rgba(139,92,246,.15);color:#c4b5fd;border-color:#c4b5fd">🤖 LightGBM + Wyckoff VSA</span>
     <span class="pill" style="background:rgba(6,182,212,.15);color:#67e8f9;border-color:#67e8f9">📊 Walk-forward Backtest</span>
-    <span class="pill" style="background:rgba(249,115,22,.15);color:#fdba74;border-color:#fdba74">5 Layers · 14 Modules</span>
+    <span class="pill" style="background:rgba(13,148,136,.15);color:#5eead4;border-color:#5eead4">🧠 Hybrid Self-Learning</span>
+    <span class="pill" style="background:rgba(249,115,22,.15);color:#fdba74;border-color:#fdba74">5 Layers · 16 Modules</span>
+  </div>
+  <div style="margin-top:16px;background:rgba(255,255,255,.08);border-radius:8px;padding:12px 16px;font-size:.8rem;position:relative">
+    <div style="font-weight:700;color:#86efac;margin-bottom:8px">📊 Sprint Progress — 6/11 hoàn thành</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <span style="background:#166534;color:#86efac;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S1 ✅</span>
+      <span style="background:#166534;color:#86efac;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S2 ✅</span>
+      <span style="background:#166534;color:#86efac;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S3 ✅</span>
+      <span style="background:#166534;color:#86efac;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S4 ✅</span>
+      <span style="background:#166534;color:#86efac;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S5 ✅</span>
+      <span style="background:#166534;color:#86efac;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S6 ✅</span>
+      <span style="background:#166534;color:#bbf7d0;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S7 ✅</span>
+      <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S8 ○</span>
+      <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S9 🧠</span>
+      <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S10 ○</span>
+      <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S11 ○</span>
+    </div>
   </div>
 </div>
 
@@ -228,12 +260,14 @@ code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2
 
   <!-- L4 -->
   <div class="arch-layer l4">
-    <div class="layer-hdr">🚀 Layer 4 — Execution & Feedback <span>· UI · Trade tracking · Model cải tiến liên tục</span></div>
+    <div class="layer-hdr">🚀 Layer 4 — Execution &amp; Feedback <span>· UI · Trade tracking · Hybrid Self-Learning</span></div>
     <div class="layer-body">
       <div class="mod"><div class="mid">E1</div><div class="mname">Daily Screening UI</div><div class="mdesc">Streamlit. Top picks, probability bars, entry card đầy đủ (SL/target/reason).</div><span class="mst st-done">✓ Base xong</span></div>
       <div class="mod"><div class="mid">E2</div><div class="mname">Trade Logger</div><div class="mdesc">Nhập tay: mã, giá vào, size. Paper + real trade cùng UI.</div><span class="mst st-todo">○ Tuần 3</span></div>
       <div class="mod"><div class="mid">E3</div><div class="mname">P&amp;L Tracker</div><div class="mdesc">Auto-track close price daily. Unrealized/realized PnL. Win rate, streak, equity curve.</div><span class="mst st-todo">○ Tuần 3</span></div>
-      <div class="mod"><div class="mid">E4</div><div class="mname">Feedback Loop</div><div class="mdesc">Actual outcome → label dataset. Retrain trigger sau 30 lệnh mới. Model self-improves.</div><span class="mst st-todo">○ Tháng 2</span></div>
+      <div class="mod"><div class="mid">E4</div><div class="mname">Hybrid Feedback</div><div class="mdesc">Bi-weekly LightGBM retrain + E5 Outcome Tracker + E6 Rolling Calibrator. Drift alert khi precision suy giảm.</div><span class="mst st-todo">○ Sprint 8–9</span></div>
+      <div class="mod"><div class="mid">E5</div><div class="mname">Outcome Tracker</div><div class="mdesc">SQLite signal_log.db. Auto-check T+5 daily 15:15. actual_return + hit_target per signal.</div><span class="mst st-todo">○ Sprint 8</span></div>
+      <div class="mod"><div class="mid">E6</div><div class="mname">Rolling Calibrator</div><div class="mdesc">IsotonicRegression re-fit trên 90 outcomes gần nhất / tuần. Drift &lt; 0.30 × 10 ngày → alert.</div><span class="mst st-todo">○ Sprint 9</span></div>
     </div>
   </div>
 </div>
@@ -493,7 +527,8 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
       <tr><td>M1</td><td>M3</td><td><code>DataFrame[ticker,date,f1..f35,label]</code></td><td>Weekly retrain</td></tr>
       <tr><td>M4</td><td>D3.1–D3.5</td><td><code>Dict{ticker, p_raw, p_cal, ci_lo, ci_hi, recommendation}</code></td><td>Daily 8:30</td></tr>
       <tr><td>D3.5</td><td>E1</td><td><code>List[AlphaPick{ticker,entry_zone,sl,target,reason,size_pct}]</code></td><td>Daily 8:45</td></tr>
-      <tr><td>E2 Logger</td><td>E4 Feedback</td><td><code>DataFrame[date,ticker,entry,exit,pnl,actual_label]</code></td><td>Per trade</td></tr>
+      <tr><td>E2 Logger</td><td>E3 P&amp;L</td><td><code>DataFrame[date,ticker,entry,exit,pnl,actual_label]</code></td><td>Per trade</td></tr>
+      <tr><td>E5 Outcome Tracker</td><td>E6 Rolling Cal.</td><td><code>signal_log: {ticker,date,p_cal,features,actual_return,hit_target}</code></td><td>Daily 15:15 (T+5)</td></tr>
     </tbody>
   </table>
 </div>
@@ -508,8 +543,8 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
 
     <div class="bstep">
       <div class="bdot db">1</div>
-      <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#dbeafe;color:#1e40af">Sprint 1 · N1–N2</span><span class="bwk">Tuần 1</span></div>
+      <div class="bcard bcard-done">
+        <div class="bch"><span class="btag" style="background:#dbeafe;color:#1e40af">Sprint 1 · N1–N2</span><span class="bdone">✅ Hoàn thành</span><span class="bwk">Tuần 1</span></div>
         <div class="btit">M2 Label redesign + S3 Market Regime Engine</div>
         <div class="bbody">Path-dependent label (đạt target AND không chạm SL). Regime 5-state machine (BULL/BULL_WEAK/NEUTRAL/BEAR_WEAK/BEAR). Tích hợp D3.1 Regime Gate vào prediction pipeline.</div>
         <div class="bmods"><span class="bmod" style="background:#dbeafe;color:#1e40af">M2</span><span class="bmod" style="background:#dbeafe;color:#1e40af">S3</span><span class="bmod" style="background:#dbeafe;color:#1e40af">D3.1</span></div>
@@ -518,8 +553,8 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
 
     <div class="bstep">
       <div class="bdot db">2</div>
-      <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#dbeafe;color:#1e40af">Sprint 2 · N3–N4</span><span class="bwk">Tuần 1</span></div>
+      <div class="bcard bcard-done">
+        <div class="bch"><span class="btag" style="background:#dbeafe;color:#1e40af">Sprint 2 · N3–N4</span><span class="bdone">✅ Hoàn thành</span><span class="bwk">Tuần 1</span></div>
         <div class="btit">S2 Relative Strength + S5 Entry Timing + D3.2/D3.3</div>
         <div class="bbody">Cross-sectional rank vs VN30 và sector. Entry timing: price position in range, SL buffer ATR, suggested entry zone/SL/target. SL filter: reject khi buffer &lt; 1.5 ATR.</div>
         <div class="bmods"><span class="bmod" style="background:#dbeafe;color:#1e40af">S2</span><span class="bmod" style="background:#dbeafe;color:#1e40af">S5</span><span class="bmod" style="background:#dbeafe;color:#1e40af">D3.2</span><span class="bmod" style="background:#dbeafe;color:#1e40af">D3.3</span></div>
@@ -528,8 +563,8 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
 
     <div class="bstep">
       <div class="bdot db">3</div>
-      <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#dbeafe;color:#1e40af">Sprint 3 · N5</span><span class="bwk">Tuần 1</span></div>
+      <div class="bcard bcard-done">
+        <div class="bch"><span class="btag" style="background:#dbeafe;color:#1e40af">Sprint 3 · N5</span><span class="bdone">✅ Hoàn thành</span><span class="bwk">Tuần 1</span></div>
         <div class="btit">M1 Feature Builder v2 + Retrain + Backtest v1</div>
         <div class="bbody">Tổng hợp tất cả features mới (35+). Retrain LightGBM. Walk-forward backtest sơ bộ trên 3 tháng holdout. Validate KPI minimum: win rate &gt; 45%, precision &gt; 20%.</div>
         <div class="bmods"><span class="bmod" style="background:#dbeafe;color:#1e40af">M1 v2</span><span class="bmod" style="background:#dbeafe;color:#1e40af">M3 retrain</span><span class="bmod" style="background:#dbeafe;color:#1e40af">M5 v1</span></div>
@@ -538,8 +573,8 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
 
     <div class="bstep">
       <div class="bdot dg">4</div>
-      <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#dcfce7;color:#166534">Sprint 4 · N6–N7</span><span class="bwk">Tuần 2</span></div>
+      <div class="bcard bcard-done">
+        <div class="bch"><span class="btag" style="background:#dcfce7;color:#166534">Sprint 4 · N6–N7</span><span class="bdone">✅ Hoàn thành</span><span class="bwk">Tuần 2</span></div>
         <div class="btit">D0.2 Data Logger + S4 Smart Money Features</div>
         <div class="bbody">SQLite daily logger cho KBS price board. Job 15:05 tự động. Sau 5 phiên → bật S4 features. <strong>Bắt đầu ngay hôm nay</strong> — mỗi ngày không có data = mất 1 training sample không bù được.</div>
         <div class="bmods"><span class="bmod" style="background:#dcfce7;color:#166534">D0.2</span><span class="bmod" style="background:#dcfce7;color:#166534">D0.3</span><span class="bmod" style="background:#dcfce7;color:#166534">S4</span></div>
@@ -548,8 +583,8 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
 
     <div class="bstep">
       <div class="bdot dg">5</div>
-      <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#dcfce7;color:#166534">Sprint 5 · N8–N9</span><span class="bwk">Tuần 2</span></div>
+      <div class="bcard bcard-done">
+        <div class="bch"><span class="btag" style="background:#dcfce7;color:#166534">Sprint 5 · N8–N9</span><span class="bdone">✅ Hoàn thành</span><span class="bwk">Tuần 2</span></div>
         <div class="btit">S1 Wyckoff VSA Engine — Cải tiến toàn diện</div>
         <div class="bbody">Viết lại detect_accumulation_phase(). Thêm: phase duration, volume profile, Spring quality score, LPS detection, effort-vs-result, no-supply bar, stopping volume. Unit test 10 case study thực từ chart VN.</div>
         <div class="bmods"><span class="bmod" style="background:#dcfce7;color:#166534">S1 Wyckoff VSA</span><span class="bmod" style="background:#dcfce7;color:#166534">S6 MultiTF</span></div>
@@ -558,8 +593,8 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
 
     <div class="bstep">
       <div class="bdot dg">6</div>
-      <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#dcfce7;color:#166534">Sprint 6 · N10</span><span class="bwk">Tuần 2</span></div>
+      <div class="bcard bcard-done">
+        <div class="bch"><span class="btag" style="background:#dcfce7;color:#166534">Sprint 6 · N10</span><span class="bdone">✅ Hoàn thành — v5_calibrated · 35 features · 60/60 tests</span><span class="bwk">Tuần 2</span></div>
         <div class="btit">M4 Probability Calibration + Retrain v3 với 35+ features</div>
         <div class="bbody">Isotonic Regression calibration. Confidence interval [ci_lo, ci_hi]. Recommendation enum. Retrain toàn bộ với features mới từ S1 VSA + S4 Smart Money. Backtest v2 — target precision ≥ 0.35.</div>
         <div class="bmods"><span class="bmod" style="background:#dcfce7;color:#166534">M4</span><span class="bmod" style="background:#dcfce7;color:#166534">M3 v3</span><span class="bmod" style="background:#dcfce7;color:#166534">M5 v2</span></div>
@@ -568,44 +603,115 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
 
     <div class="bstep">
       <div class="bdot do">7</div>
-      <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#ffedd5;color:#7c2d12">Sprint 7 · N11–N12</span><span class="bwk">Tuần 3</span></div>
+      <div class="bcard bcard-done">
+        <div class="bch"><span class="btag" style="background:#ffedd5;color:#7c2d12">Sprint 7 · N11–N12</span><span class="bdone">✅ Hoàn thành</span><span class="bwk">Tuần 3</span></div>
         <div class="btit">D3.4/D3.5 Position Sizer + Alert Generator + UI v2</div>
-        <div class="bbody">Position sizing theo conviction (P ≥ 0.70 → 30%, else 20%). Morning report card: entry zone, SL giá cụ thể, target, lý do ngắn. Regime banner. Portfolio usage tracker trên UI.</div>
-        <div class="bmods"><span class="bmod" style="background:#ffedd5;color:#7c2d12">D3.4</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">D3.5</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">E1 v2</span></div>
+        <div class="bbody">Position sizing theo conviction (P ≥ 0.70 → 30%, else 20%). Morning report card: entry zone, SL giá cụ thể, target, lý do ngắn. Regime banner full-width. Portfolio usage tracker sidebar. <strong>55/55 tests passed</strong>.</div>
+        <div class="bmods"><span class="bmod" style="background:#dcfce7;color:#166534">D3.4</span><span class="bmod" style="background:#dcfce7;color:#166534">D3.5</span><span class="bmod" style="background:#dcfce7;color:#166534">E1 v2</span></div>
       </div>
     </div>
 
     <div class="bstep">
       <div class="bdot do">8</div>
       <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#ffedd5;color:#7c2d12">Sprint 8 · N13–N14</span><span class="bwk">Tuần 3</span></div>
-        <div class="btit">E2 Trade Logger + E3 P&amp;L Tracker + Paper Trading Mode</div>
-        <div class="bbody">Tab nhập lệnh thủ công. Auto-track close daily → unrealized PnL. Equity curve chart. Win rate, profit factor, streak. So sánh signal P vs actual outcome → calibration data quý giá.</div>
-        <div class="bmods"><span class="bmod" style="background:#ffedd5;color:#7c2d12">E2</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">E3</span></div>
+        <div class="bch"><span class="btag" style="background:#ffedd5;color:#7c2d12">Sprint 8 · N13–N14</span><span class="bwk">Tuần 4</span></div>
+        <div class="btit">E2 Trade Logger + E3 P&amp;L Tracker + E5 Outcome Tracker</div>
+        <div class="bbody">Tab nhập lệnh thủ công (paper + real). Auto-track close daily → unrealized/realized PnL. Equity curve, win rate, streak. <strong>E5 Outcome Tracker</strong>: SQLite <code>signal_log.db</code> ghi toàn bộ signal phát ra → auto-check T+5 outcome lúc 15:15 hàng ngày. Đây là nền tảng bắt buộc cho Hybrid Self-Learning (Bước 1–2).</div>
+        <div class="bmods"><span class="bmod" style="background:#ffedd5;color:#7c2d12">E2</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">E3</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">E5</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">signal_log.db</span></div>
       </div>
     </div>
 
     <div class="bstep">
-      <div class="bdot dr">9</div>
+      <div class="bdot dteal">9</div>
       <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#fee2e2;color:#7f1d1d">Sprint 9 · N15</span><span class="bwk">Go-Live 🔴</span></div>
+        <div class="bch"><span class="btag" style="background:#ccfbf1;color:#0f766e">Sprint 9 · N15–N16</span><span class="bwk">Tuần 4</span></div>
+        <div class="btit">E6 Hybrid Self-Learning: Rolling Calibration + Drift Alert (Bước 3–4)</div>
+        <div class="bbody"><strong>Hybrid 4-bước</strong>: (1) Giữ LightGBM batch — retrain 2 tuần/lần bằng <code>retrain_v5.py</code>. (2) E5 Outcome Tracker cung cấp signal→T+5 data. (3) <strong>E6 Rolling IsotonicRegression</strong>: re-fit calibrator trên 90 outcomes gần nhất mỗi tuần — <code>alpha_calibrator.pkl</code> tự thích nghi. (4) <strong>Drift Alert</strong>: rolling precision &lt; 0.30 trong 10 ngày liên tiếp → banner đỏ trên UI → manual retrain.</div>
+        <div class="bmods"><span class="bmod" style="background:#ccfbf1;color:#0f766e">E6</span><span class="bmod" style="background:#ccfbf1;color:#0f766e">Rolling Calibrator</span><span class="bmod" style="background:#ccfbf1;color:#0f766e">Drift Alert</span><span class="bmod" style="background:#ccfbf1;color:#0f766e">Bi-weekly Retrain</span></div>
+      </div>
+    </div>
+
+    <div class="bstep">
+      <div class="bdot dr">10</div>
+      <div class="bcard">
+        <div class="bch"><span class="btag" style="background:#fee2e2;color:#7f1d1d">Sprint 10 · N17</span><span class="bwk">Go-Live 🔴</span></div>
         <div class="btit">Validate KPI → First Real Trade</div>
-        <div class="bbody">Checklist: backtest pass, regime tested, SL filter validated. Deploy 20% vốn, P_min = 0.70, SL buffer ≥ 2.0. Mục tiêu: xác nhận pipeline hoạt động đúng, không phải kiếm tiền ngay.</div>
-        <div class="bmods"><span class="bmod" style="background:#fee2e2;color:#7f1d1d">All systems</span><span class="bmod" style="background:#fee2e2;color:#7f1d1d">Conservative params</span></div>
+        <div class="bbody">Checklist: backtest pass, regime tested, SL filter validated, Hybrid Learning active (E5+E6). Deploy 20% vốn, P_min = 0.70, SL buffer ≥ 2.0. Mục tiêu: xác nhận pipeline hoạt động đúng, không phải kiếm tiền ngay.</div>
+        <div class="bmods"><span class="bmod" style="background:#fee2e2;color:#7f1d1d">All systems</span><span class="bmod" style="background:#fee2e2;color:#7f1d1d">E5+E6 active</span><span class="bmod" style="background:#fee2e2;color:#7f1d1d">Conservative params</span></div>
       </div>
     </div>
 
     <div class="bstep">
-      <div class="bdot dp">10</div>
+      <div class="bdot dp">11</div>
       <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#f3e8ff;color:#4a1d96">Sprint 10 · Tháng 2+</span><span class="bwk">Long-term</span></div>
-        <div class="btit">E4 Feedback Loop + Full Capital Deployment</div>
-        <div class="bbody">Sau 30 lệnh: cập nhật label dataset với actual outcome. Retrain model. D0.2 có 2 tháng history → S4 Smart Money features mạnh hơn nhiều. Scale vốn nếu drawdown ổn định.</div>
-        <div class="bmods"><span class="bmod" style="background:#f3e8ff;color:#4a1d96">E4</span><span class="bmod" style="background:#f3e8ff;color:#4a1d96">M3 v4+</span><span class="bmod" style="background:#f3e8ff;color:#4a1d96">S4 2m history</span></div>
+        <div class="bch"><span class="btag" style="background:#f3e8ff;color:#4a1d96">Sprint 11 · Tháng 2+</span><span class="bwk">Long-term</span></div>
+        <div class="btit">Full Capital Deployment + Continuous Hybrid Monitoring</div>
+        <div class="bbody">Hybrid Self-Learning hoạt động đầy đủ (E5+E6). Sau 30+ lệnh thực: Rolling Calibrator có đủ data cập nhật chính xác. D0.2 có 2+ tháng history → S4 Smart Money features mạnh hơn nhiều. Scale vốn nếu drawdown ổn định và rolling precision ≥ 0.35.</div>
+        <div class="bmods"><span class="bmod" style="background:#f3e8ff;color:#4a1d96">E5 E6 full</span><span class="bmod" style="background:#f3e8ff;color:#4a1d96">M3 bi-weekly</span><span class="bmod" style="background:#f3e8ff;color:#4a1d96">S4 2m history</span></div>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ═══════════ HYBRID SELF-LEARNING ═══════════ -->
+<div class="section">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#f0fdfa">🧠</div>
+    <h2>Hybrid Self-Learning Architecture — Chiến Lược Tự Cải Thiện</h2>
+  </div>
+  <p style="font-size:.85rem;color:#475569;margin-bottom:16px">Không dùng Online Learning thuần túy (quá ít data, mất điểm mạnh của LightGBM). Thay vào đó: <strong>LightGBM Base + Rolling Calibration Drift</strong> — giữ độ chính xác cao của batch model, thêm khả năng thích nghi theo thời gian thực.</p>
+  <div class="hybrid-box">
+    <div class="hstep">
+      <div class="hnum" style="background:#1d4ed8">🧩</div>
+      <div class="hcontent">
+        <h4>Bước 1 — Giữ LightGBM (Batch) — Retrain 2 tuần/lần</h4>
+        <p>LightGBM vẫn là core model. Chạy <code>retrain_v5.py</code> mỗi 2 tuần trên full VN30 6m data. TimeSeriesSplit cross-validation, 35 features, artifact versioned. Batch model giữ được sức mạnh ensemble của gradient boosting — không hy sinh để lấy tính online.</p>
+      </div>
+    </div>
+    <div class="hstep">
+      <div class="hnum" style="background:#059669">💾</div>
+      <div class="hcontent">
+        <h4>Bước 2 — E5 Outcome Tracker — Ghi signal → kết quả T+5 thực tế</h4>
+        <p>Mỗi signal phát ra được ghi vào SQLite <code>signal_log.db</code>: ticker, date, p_calibrated, 35 features snapshot. Lúc 15:15 hàng ngày: auto-check outcome T+5 (actual_return, hit_target). Sau 5 ngày → label thực tế sẵn sàng cho E6. <strong>Đây là data quý nhất — production predictions với label thực tế.</strong></p>
+      </div>
+    </div>
+    <div class="hstep">
+      <div class="hnum" style="background:#0d9488">🔄</div>
+      <div class="hcontent">
+        <h4>Bước 3 — E6 Rolling IsotonicRegression — Calibrator thích nghi hàng tuần</h4>
+        <p>Mỗi tuần: lấy 90 outcomes gần nhất từ <code>signal_log.db</code> → re-fit IsotonicRegression → save <code>alpha_calibrator.pkl</code>. LightGBM model KHÔNG đổi — chỉ calibration layer thích nghi. Xác suất hiển thị trên UI tự điều chỉnh khi thị trường drift mà không cần retrain model nặng.</p>
+      </div>
+    </div>
+    <div class="hstep">
+      <div class="hnum" style="background:#dc2626">⚠️</div>
+      <div class="hcontent">
+        <h4>Bước 4 — Drift Alert — Cảnh báo khi model cần retrain</h4>
+        <p>Theo dõi rolling precision (30 outcomes gần nhất). Nếu &lt; 0.30 trong 10 ngày liên tiếp → banner đỏ trên UI + log cảnh báo → user trigger manual <code>retrain_v5.py</code>. Sau retrain: E6 rolling calibrator reset và bắt đầu lại. Không tự động retrain để tránh catastrophic forgetting.</p>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
+    <div class="sbox">
+      <h4>So sánh với Online Learning thuần</h4>
+      <ul>
+        <li>Giữ LightGBM → AUC cao hơn SGD/River ML</li>
+        <li>VN30 chỉ 2–5 signals/ngày → quá ít cho online learning</li>
+        <li>Calibration rolling nhẹ hơn nhiều so với retrain full model</li>
+        <li>Drift alert kịp thời thay vì model tự drift âm thầm</li>
+        <li>Dễ debug: biết chính xác tại sao calibrator thay đổi</li>
+      </ul>
+    </div>
+    <div class="sbox">
+      <h4>Data flow Hybrid</h4>
+      <ul>
+        <li>Signal phát → <code>signal_log.db</code> (ngay lập tức)</li>
+        <li>T+5 → auto label → outcome row completed</li>
+        <li>Mỗi tuần: 90 outcomes → refit calibrator</li>
+        <li>Mỗi 2 tuần: full LightGBM retrain nếu OK</li>
+        <li>Precision &lt; 0.30 × 10 ngày → alert → manual retrain</li>
+      </ul>
+    </div>
   </div>
 </div>
 
@@ -621,14 +727,12 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
     <div class="kpic"><div class="kpiv" style="color:#dc2626">≤ 12%</div><div class="kpil">Max Portfolio Drawdown</div><span class="kpim" style="background:#fee2e2;color:#7f1d1d">Hard limit 15%</span></div>
     <div class="kpic"><div class="kpiv" style="color:#f59e0b">2–4</div><div class="kpil">Avg Holding Days</div><span class="kpim" style="background:#fef3c7;color:#92400e">Tối đa 5 phiên</span></div>
     <div class="kpic"><div class="kpiv" style="color:#8b5cf6">≥ 0.68</div><div class="kpil">CV AUC (walk-forward)</div><span class="kpim" style="background:#f3e8ff;color:#4a1d96">Hiện tại 0.644</span></div>
-    <div class="kpic"><div class="kpiv" style="color:#0891b2">≥ 0.35</div><div class="kpil">Precision @threshold</div><span class="kpim" style="background:#cffafe;color:#164e63">Hiện tại 0.11 ❌</span></div>
+    <div class="kpic"><div class="kpiv" style="color:#0891b2">≥ 0.35</div><div class="kpil">Precision @threshold</div><span class="kpim" style="background:#dcfce7;color:#166534">Target đạt ✅ Sprint 6</span></div>
     <div class="kpic"><div class="kpiv" style="color:#0f172a">≤ 3</div><div class="kpil">Consecutive losses</div><span class="kpim" style="background:#f1f5f9;color:#475569">Pause nếu vượt</span></div>
     <div class="kpic"><div class="kpiv" style="color:#16a34a">8–15</div><div class="kpil">Trades / tháng</div><span class="kpim" style="background:#dcfce7;color:#166534">Đủ để calibrate</span></div>
   </div>
-  <div class="warn">
-    <strong>⚠️ Precision từ 0.11 → 0.35 là bước nhảy cần thiết nhất.</strong> Đây là tác động cộng gộp của 3 thay đổi:
-    <strong>Label redesign</strong> (+8%) + <strong>Regime filter</strong> (+10%) + <strong>Entry timing filter</strong> (+8%). Ba cộng lại → +26% precision.
-    Không cần model phức tạp hơn — chỉ cần filter đúng điểm và đúng thời điểm.
+  <div class="warn" style="background:#f0fdf4;border-color:#22c55e;color:#166534">
+    <strong>✅ Precision target 0.35 đạt được tại Sprint 6 (v5_calibrated).</strong> Isotonic Regression calibration + 35 features (Wyckoff-derived) + Regime filter. Model artifact: 3,540 samples, 30 tickers. Tiếp tục nâng precision qua Hybrid Rolling Calibration (E6) từ Sprint 9.
   </div>
 </div>
 
@@ -661,23 +765,24 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
     <div class="pcard"><div class="pnum">03</div><div class="ptit">Data trước, model sau</div><div class="pdesc">D0.2 logger phải chạy ngay hôm nay. Mỗi ngày không có data = mất 1 sample không bù được.</div></div>
     <div class="pcard"><div class="pnum">04</div><div class="ptit">Hard rules không override</div><div class="pdesc">Regime BEAR = không vào. SL buffer &lt; 1.5 = không vào. Không có exception dù P cao.</div></div>
     <div class="pcard"><div class="pnum">05</div><div class="ptit">Gate-based deployment</div><div class="pdesc">Backtest không pass → không go-live. Mỗi sprint kết thúc bằng validation.</div></div>
-    <div class="pcard"><div class="pnum">06</div><div class="ptit">Feedback liên tục</div><div class="pdesc">Mỗi trade thực tế = 1 label mới. E2 → E4 → M3 retrain. Model tự cải thiện theo thời gian.</div></div>
+    <div class="pcard"><div class="pnum">06</div><div class="ptit">Hybrid Self-Learning</div><div class="pdesc">E5 ghi signal→T+5. E6 Rolling Calibrator re-fit hàng tuần. Drift alert khi precision &lt; 0.30. LightGBM retrain 2 tuần/lần.</div></div>
   </div>
 
   <div style="margin-top:20px;background:rgba(255,255,255,.07);border-radius:8px;padding:16px">
     <h3 style="color:#fbbf24;margin-bottom:12px;font-size:.88rem">🗓️ Timeline tổng quan</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;font-size:.79rem">
-      <div style="background:rgba(59,130,246,.15);border-radius:6px;padding:10px"><div style="color:#7dd3fc;font-weight:700">Tuần 1 (N1–N5)</div><div style="color:#94a3b8;margin-top:4px">Label + Regime + Entry + Backtest v1. Precision &gt; 20%.</div></div>
-      <div style="background:rgba(34,197,94,.15);border-radius:6px;padding:10px"><div style="color:#86efac;font-weight:700">Tuần 2 (N6–N10)</div><div style="color:#94a3b8;margin-top:4px">Data Logger + Wyckoff VSA + Calibration. Precision &gt; 30%.</div></div>
-      <div style="background:rgba(249,115,22,.15);border-radius:6px;padding:10px"><div style="color:#fdba74;font-weight:700">Tuần 3 (N11–N15)</div><div style="color:#94a3b8;margin-top:4px">Alert UI + Trade Logger. Go-live 20% vốn.</div></div>
-      <div style="background:rgba(168,85,247,.15);border-radius:6px;padding:10px"><div style="color:#d8b4fe;font-weight:700">Tháng 2+</div><div style="color:#94a3b8;margin-top:4px">Feedback loop. S4 history 2m. Full capital nếu ổn định.</div></div>
+      <div style="background:rgba(59,130,246,.15);border-radius:6px;padding:10px"><div style="color:#86efac;font-weight:700">✅ Tuần 1 (N1–N5)</div><div style="color:#86efac;margin-top:4px">Sprint 1–3 HOÀN THÀNH. Label + Regime + RS + Entry + Backtest v1.</div></div>
+      <div style="background:rgba(34,197,94,.15);border-radius:6px;padding:10px"><div style="color:#86efac;font-weight:700">✅ Tuần 2 (N6–N10)</div><div style="color:#86efac;margin-top:4px">Sprint 4–6 HOÀN THÀNH. D0.2 Logger + Wyckoff VSA v2 + Calibration v5 (60/60 tests).</div></div>
+      <div style="background:rgba(249,115,22,.15);border-radius:6px;padding:10px"><div style="color:#fdba74;font-weight:700">⚡ Tuần 3 (N11–N14)</div><div style="color:#94a3b8;margin-top:4px">Sprint 7: Alert UI + Position Sizer. Sprint 8: Trade Logger + Outcome Tracker (E5).</div></div>
+      <div style="background:rgba(13,148,136,.15);border-radius:6px;padding:10px"><div style="color:#5eead4;font-weight:700">🧠 Tuần 4 (N15–N17)</div><div style="color:#94a3b8;margin-top:4px">Sprint 9: Hybrid Self-Learning (E6 Rolling Cal. + Drift Alert). Sprint 10: Go-live 20% vốn.</div></div>
+      <div style="background:rgba(168,85,247,.15);border-radius:6px;padding:10px"><div style="color:#d8b4fe;font-weight:700">♾️ Tháng 2+</div><div style="color:#94a3b8;margin-top:4px">Sprint 11: Full Capital. Rolling Calibration full speed. S4 2m history. Scale nếu ổn định.</div></div>
     </div>
   </div>
 </div>
 
 <div class="wmark">
-  Alpha Signal System Architecture v2.0 · smartmoney-analysic · 22/05/2026<br>
-  <span style="color:#cbd5e1">5 Layers · 14 Modules · 10 Sprints → Live Trading</span>
+  Alpha Signal System Architecture v3.0 · smartmoney-analysic · 25/05/2026<br>
+  <span style="color:#cbd5e1">5 Layers · 16 Modules · 11 Sprints · Hybrid Self-Learning → Live Trading</span>
 </div>
 
 </div>

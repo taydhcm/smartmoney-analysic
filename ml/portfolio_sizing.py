@@ -123,3 +123,31 @@ def compute_position_size(
         shares=shares,
         reasoning=reasoning,
     )
+
+
+def compute_conviction_size(
+    p_calibrated: float,
+    regime_max_positions: int = 5,
+) -> float:
+    """
+    Conviction-based position sizing (D3.4 Sprint 7).
+
+    Rule:
+        p_calibrated >= 0.70  → 30% vốn (HIGH CONVICTION)
+        p_calibrated <  0.70  → 20% vốn (STANDARD)
+
+    Bounded by: min(conviction_size, 1/regime_max_positions)
+
+    Parameters
+    ----------
+    p_calibrated          : Calibrated probability từ M4 [0, 1].
+    regime_max_positions  : Max vị thế đồng thời (từ RegimeInfo). Default 5.
+
+    Returns
+    -------
+    float : fraction [0, 1] of portfolio to allocate (e.g. 0.30).
+    """
+    p = float(np.clip(p_calibrated, 0.0, 1.0))
+    base = 0.30 if p >= 0.70 else 0.20
+    regime_cap = 1.0 / max(regime_max_positions, 1)
+    return round(min(base, regime_cap), 4)

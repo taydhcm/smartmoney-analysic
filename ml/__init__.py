@@ -1,6 +1,6 @@
 """
 ml/__init__.py
-Alpha Signal ML package — v5.0
+Alpha Signal ML package — v6.0 (Sprint 7: D3.4/D3.5 conviction sizing + alert generator)
 """
 
 from .feature_engineering import FEATURE_COLS, compute_stock_features
@@ -18,7 +18,8 @@ from .regime import RegimeInfo, RegimeState, get_market_regime
 from .relative_strength import RSInfo, compute_stock_rs, rank_by_rs
 from .entry_timing import EntryZone, compute_entry_zone
 from .volume_confirmation import VolumeConfirmation, compute_volume_confirmation
-from .portfolio_sizing import PositionSize, compute_position_size
+from .portfolio_sizing import PositionSize, compute_position_size, compute_conviction_size
+from .alert_generator import AlertCard, PortfolioUsage, generate_alert, generate_morning_report, compute_portfolio_usage, _build_reason
 from .backtest import BacktestResult, run_backtest
 from .smart_money import SmartMoneySignal, compute_smart_money, compute_smart_money_features
 from analytics.wyckoff import WyckoffResult, detect_wyckoff
@@ -59,6 +60,14 @@ __all__ = [
     # D3.4 portfolio sizing
     "PositionSize",
     "compute_position_size",
+    "compute_conviction_size",       # Sprint 7
+    # D3.5 alert generator (Sprint 7)
+    "AlertCard",
+    "PortfolioUsage",
+    "generate_alert",
+    "generate_morning_report",
+    "compute_portfolio_usage",
+    "_build_reason",
     # backtest (v2, Sprint 6)
     "BacktestResult",
     "run_backtest",
