@@ -1,6 +1,6 @@
 """
 ml/__init__.py
-Alpha Signal ML package — v6.0 (Sprint 7: D3.4/D3.5 conviction sizing + alert generator)
+Alpha Signal ML package — v7.0 (Sprint 8: E5 Outcome Tracker + E3 P&L Tracker)
 """
 
 from .feature_engineering import FEATURE_COLS, compute_stock_features
@@ -20,6 +20,15 @@ from .entry_timing import EntryZone, compute_entry_zone
 from .volume_confirmation import VolumeConfirmation, compute_volume_confirmation
 from .portfolio_sizing import PositionSize, compute_position_size, compute_conviction_size
 from .alert_generator import AlertCard, PortfolioUsage, generate_alert, generate_morning_report, compute_portfolio_usage, _build_reason
+from .outcome_tracker import (
+    log_signal, log_signals_batch,
+    check_pending_outcomes,
+    get_recent_signals, get_signal_stats, get_outcome_table,
+    SIGNAL_LOG_DB,
+)
+from .pnl_tracker import (
+    compute_trade_pnl, compute_equity_curve, compute_stats, compute_win_streak,
+)
 from .backtest import BacktestResult, run_backtest
 from .smart_money import SmartMoneySignal, compute_smart_money, compute_smart_money_features
 from analytics.wyckoff import WyckoffResult, detect_wyckoff
@@ -78,4 +87,17 @@ __all__ = [
     # S1 Wyckoff VSA v2.0 (Sprint 5)
     "WyckoffResult",
     "detect_wyckoff",
+    # E5 Outcome Tracker (Sprint 8)
+    "log_signal",
+    "log_signals_batch",
+    "check_pending_outcomes",
+    "get_recent_signals",
+    "get_signal_stats",
+    "get_outcome_table",
+    "SIGNAL_LOG_DB",
+    # E3 P&L Tracker (Sprint 8)
+    "compute_trade_pnl",
+    "compute_equity_curve",
+    "compute_stats",
+    "compute_win_streak",
 ]

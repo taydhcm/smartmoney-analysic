@@ -185,7 +185,7 @@ code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2
       <span style="background:#166534;color:#86efac;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S5 ✅</span>
       <span style="background:#166534;color:#86efac;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S6 ✅</span>
       <span style="background:#166534;color:#bbf7d0;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S7 ✅</span>
-      <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S8 ○</span>
+      <span style="background:#166534;color:#bbf7d0;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S8 ✅</span>
       <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S9 🧠</span>
       <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S10 ○</span>
       <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S11 ○</span>
@@ -266,7 +266,7 @@ code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2
       <div class="mod"><div class="mid">E2</div><div class="mname">Trade Logger</div><div class="mdesc">Nhập tay: mã, giá vào, size. Paper + real trade cùng UI.</div><span class="mst st-todo">○ Tuần 3</span></div>
       <div class="mod"><div class="mid">E3</div><div class="mname">P&amp;L Tracker</div><div class="mdesc">Auto-track close price daily. Unrealized/realized PnL. Win rate, streak, equity curve.</div><span class="mst st-todo">○ Tuần 3</span></div>
       <div class="mod"><div class="mid">E4</div><div class="mname">Hybrid Feedback</div><div class="mdesc">Bi-weekly LightGBM retrain + E5 Outcome Tracker + E6 Rolling Calibrator. Drift alert khi precision suy giảm.</div><span class="mst st-todo">○ Sprint 8–9</span></div>
-      <div class="mod"><div class="mid">E5</div><div class="mname">Outcome Tracker</div><div class="mdesc">SQLite signal_log.db. Auto-check T+5 daily 15:15. actual_return + hit_target per signal.</div><span class="mst st-todo">○ Sprint 8</span></div>
+      <div class="mod"><div class="mid">E5</div><div class="mname">Outcome Tracker</div><div class="mdesc">SQLite signal_log.db. Auto-check T+5 daily 15:15. actual_return + hit_target per signal.</div><span class="mst st-done">✅ Sprint 8</span></div>
       <div class="mod"><div class="mid">E6</div><div class="mname">Rolling Calibrator</div><div class="mdesc">IsotonicRegression re-fit trên 90 outcomes gần nhất / tuần. Drift &lt; 0.30 × 10 ngày → alert.</div><span class="mst st-todo">○ Sprint 9</span></div>
     </div>
   </div>
@@ -613,11 +613,11 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
 
     <div class="bstep">
       <div class="bdot do">8</div>
-      <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#ffedd5;color:#7c2d12">Sprint 8 · N13–N14</span><span class="bwk">Tuần 4</span></div>
+      <div class="bcard bcard-done">
+        <div class="bch"><span class="btag" style="background:#ffedd5;color:#7c2d12">Sprint 8 · N13–N14</span><span class="bdone">✅ Hoàn thành</span><span class="bwk">Tuần 4</span></div>
         <div class="btit">E2 Trade Logger + E3 P&amp;L Tracker + E5 Outcome Tracker</div>
-        <div class="bbody">Tab nhập lệnh thủ công (paper + real). Auto-track close daily → unrealized/realized PnL. Equity curve, win rate, streak. <strong>E5 Outcome Tracker</strong>: SQLite <code>signal_log.db</code> ghi toàn bộ signal phát ra → auto-check T+5 outcome lúc 15:15 hàng ngày. Đây là nền tảng bắt buộc cho Hybrid Self-Learning (Bước 1–2).</div>
-        <div class="bmods"><span class="bmod" style="background:#ffedd5;color:#7c2d12">E2</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">E3</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">E5</span><span class="bmod" style="background:#ffedd5;color:#7c2d12">signal_log.db</span></div>
+        <div class="bbody">Tab nhập lệnh thủ công (paper + real). Auto-track close daily → unrealized/realized PnL. Equity curve, win rate, streak, max drawdown, Sharpe. <strong>E5 Outcome Tracker</strong>: SQLite <code>signal_log.db</code> ghi toàn bộ signal phát ra → auto-check T+5 outcome. Drift Alert khi precision &lt; 30%. <strong>79/79 tests passed</strong>.</div>
+        <div class="bmods"><span class="bmod" style="background:#dcfce7;color:#166534">E2</span><span class="bmod" style="background:#dcfce7;color:#166534">E3</span><span class="bmod" style="background:#dcfce7;color:#166534">E5</span><span class="bmod" style="background:#dcfce7;color:#166534">signal_log.db</span><span class="bmod" style="background:#dcfce7;color:#166534">trades.db</span></div>
       </div>
     </div>
 
