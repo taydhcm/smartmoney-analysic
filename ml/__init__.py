@@ -1,6 +1,6 @@
 """
 ml/__init__.py
-Alpha Signal ML package — v8.0 (Sprint 9: E6 Rolling Calibrator)
+Alpha Signal ML package — v9.0 (Sprint 10: Go-Live Validator)
 """
 
 from .feature_engineering import FEATURE_COLS, compute_stock_features
@@ -38,6 +38,12 @@ from .rolling_calibrator import (
     needs_weekly_refit,
     ROLLING_CALIBRATOR_PATH,
     ROLLING_META_PATH,
+)
+from .go_live_checker import (
+    GoLiveConfig,
+    CheckResult,
+    GoLiveStatus,
+    run_go_live_checks,
 )
 from .backtest import BacktestResult, run_backtest
 from .smart_money import SmartMoneySignal, compute_smart_money, compute_smart_money_features
@@ -119,4 +125,9 @@ __all__ = [
     "needs_weekly_refit",
     "ROLLING_CALIBRATOR_PATH",
     "ROLLING_META_PATH",
+    # Sprint 10: Go-Live Validator
+    "GoLiveConfig",
+    "CheckResult",
+    "GoLiveStatus",
+    "run_go_live_checks",
 ]

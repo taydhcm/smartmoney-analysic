@@ -187,7 +187,7 @@ code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2
       <span style="background:#166534;color:#bbf7d0;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S7 ✅</span>
       <span style="background:#166534;color:#bbf7d0;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S8 ✅</span>
       <span style="background:#166534;color:#bbf7d0;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S9 ✅</span>
-      <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S10 ○</span>
+      <span style="background:#166534;color:#bbf7d0;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S10 ✅</span>
       <span style="background:#1e293b;color:#64748b;border-radius:4px;padding:3px 9px;font-size:.7rem;font-weight:700">S11 ○</span>
     </div>
   </div>
@@ -633,11 +633,11 @@ max_gain_5d    = path_max                         <span class="cm"># upside ti�
 
     <div class="bstep">
       <div class="bdot dr">10</div>
-      <div class="bcard">
-        <div class="bch"><span class="btag" style="background:#fee2e2;color:#7f1d1d">Sprint 10 · N17</span><span class="bwk">Go-Live 🔴</span></div>
+      <div class="bcard bcard-done">
+        <div class="bch"><span class="btag" style="background:#fee2e2;color:#7f1d1d">Sprint 10 · N17</span><span class="bdone">✅ Hoàn thành</span><span class="bwk">Go-Live 🔴</span></div>
         <div class="btit">Validate KPI → First Real Trade</div>
-        <div class="bbody">Checklist: backtest pass, regime tested, SL filter validated, Hybrid Learning active (E5+E6). Deploy 20% vốn, P_min = 0.70, SL buffer ≥ 2.0. Mục tiêu: xác nhận pipeline hoạt động đúng, không phải kiếm tiền ngay.</div>
-        <div class="bmods"><span class="bmod" style="background:#fee2e2;color:#7f1d1d">All systems</span><span class="bmod" style="background:#fee2e2;color:#7f1d1d">E5+E6 active</span><span class="bmod" style="background:#fee2e2;color:#7f1d1d">Conservative params</span></div>
+        <div class="bbody">13-check pre-flight checklist: model files, E5+E6 active, no drift, capital ready, conservative params, pipeline integrity. <code>GoLiveConfig</code>: p_min=0.70, max_position=20%, SL buffer≥2%, R/R≥2:1. <strong>GO / NO-GO banner</strong> dựa trên tất cả checks — all_passed=True → có thể vào lệnh real. <strong>68/68 tests passed</strong>.</div>
+        <div class="bmods"><span class="bmod" style="background:#dcfce7;color:#166534">GoLiveConfig</span><span class="bmod" style="background:#dcfce7;color:#166534">CheckResult</span><span class="bmod" style="background:#dcfce7;color:#166534">GoLiveStatus</span><span class="bmod" style="background:#dcfce7;color:#166534">run_go_live_checks()</span><span class="bmod" style="background:#dcfce7;color:#166534">13 checks</span></div>
       </div>
     </div>
 
