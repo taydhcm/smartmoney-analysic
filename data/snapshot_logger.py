@@ -77,29 +77,69 @@ def _fetch_foreign_for_ticker(ticker: str, session_date: str) -> dict | None:
 
 def _fetch_proprietary_for_ticker(ticker: str, session_date: str) -> dict | None:
     """
-    Lay proprietary (tu doanh) flow hom nay cho 1 ticker tu SSI iBoard.
-    Tra ve None neu SSI khong kha dung.
+    Lay proprietary (tu doanh) flow cho 1 ticker.
+
+    Fallback cascade:
+      1. SSI iBoard API -> data ngay T
+      2. SSI iBoard API -> data ngay T-1 (data T chua cap nhat sau phien)
+      3. DB snapshot -> row gan nhat co proprietary != 0 (SSI khong kha dung)
+      4. None -> 0.0 (hoan toan khong co data)
     """
+    # --- Layer 1 & 2: SSI API ---
     try:
         from analytics.ssi_iboard import fetch_investor_flow
-        df = fetch_investor_flow(ticker, limit=2)
-        if df.empty:
-            return None
-        df["date_str"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
-        row = df[df["date_str"] == session_date]
-        if row.empty:
-            row = df.iloc[[-1]]
-        r = row.iloc[0]
-        return {
-            "proprietary_buy":  float(r.get("proprietary_buy",  0) or 0),
-            "proprietary_sell": float(r.get("proprietary_sell", 0) or 0),
-            "proprietary_net":  float(r.get("proprietary_net",  0) or 0),
-        }
+        df = fetch_investor_flow(ticker, limit=10)   # lay nhieu lich su hon
+        if not df.empty:
+            df["date_str"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+            row = df[df["date_str"] == session_date]
+            if row.empty:
+                # T chua co data -> dung row gan nhat (T-1)
+                row = df.iloc[[-1]]
+                log.debug(
+                    "SSI %s: khong co data ngay T (%s), dung T-1 (%s)",
+                    ticker, session_date, df["date_str"].iloc[-1],
+                )
+            r = row.iloc[0]
+            return {
+                "proprietary_buy":  float(r.get("proprietary_buy",  0) or 0),
+                "proprietary_sell": float(r.get("proprietary_sell", 0) or 0),
+                "proprietary_net":  float(r.get("proprietary_net",  0) or 0),
+            }
     except Exception as exc:
-        log.debug("_fetch_proprietary_for_ticker(%s): %s", ticker, exc)
-        return None
+        log.debug("_fetch_proprietary_for_ticker(%s) SSI error: %s", ticker, exc)
+
+    # --- Layer 3: DB fallback (SSI tra data: null hoac loi mang) ---
+    try:
+        from data.db import load_snapshots
+        db_df = load_snapshots(ticker, last_n=10)
+        if not db_df.empty:
+            # Bo qua row cua session_date hien tai (neu da co tu truoc)
+            past = db_df[
+                db_df["session_date"].dt.strftime("%Y-%m-%d") != session_date
+            ]
+            # Lay row gan nhat co proprietary != 0
+            non_zero = past[
+                (past["proprietary_buy"] != 0) | (past["proprietary_sell"] != 0)
+            ]
+            if not non_zero.empty:
+                r = non_zero.iloc[-1]
+                t1_date = r["session_date"].strftime("%Y-%m-%d")
+                log.info(
+                    "SSI %s: dung data T-1 tu DB (%s) vi SSI chua cap nhat",
+                    ticker, t1_date,
+                )
+                return {
+                    "proprietary_buy":  float(r["proprietary_buy"]),
+                    "proprietary_sell": float(r["proprietary_sell"]),
+                    "proprietary_net":  float(r["proprietary_net"]),
+                }
+    except Exception as exc:
+        log.debug("_fetch_proprietary_for_ticker(%s) DB fallback error: %s", ticker, exc)
+
+    return None
 
 
+def _fetch_ohlcv_for_ticker(ticker: str, session_date: str) -> dict | None:
     """Lay close + total_volume tu OHLCV cuoi phien."""
     try:
         from data.market_data import get_ohlcv
