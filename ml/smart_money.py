@@ -114,11 +114,27 @@ class InstitutionalFlowSignal:
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
-def _safe_net_pct(foreign_net: float, total_volume: float) -> float:
-    """foreign_net / total_volume, clip [-1, +1]."""
-    if total_volume < 1:
-        return 0.0
-    return float(np.clip(foreign_net / total_volume, -1.0, 1.0))
+def _safe_net_pct(
+    foreign_net: float,
+    total_volume: float,
+    foreign_buy: float = 0.0,
+    foreign_sell: float = 0.0,
+) -> float:
+    """
+    Tính foreign net pct với unit-aware normalization.
+
+    Ưu tiên dùng (foreign_buy + foreign_sell) làm denominator:
+      → Đúng cho FiinMarket data (đơn vị VND): net/total_foreign ∈ [-1, +1]
+    Fallback: total_volume (shares) cho data cũ từ KBS/VNDirect.
+
+    Kết quả: tỷ lệ net direction trong dòng ngoại [-1, +1].
+    """
+    total_foreign = foreign_buy + foreign_sell
+    if total_foreign > 1:
+        return float(np.clip(foreign_net / total_foreign, -1.0, 1.0))
+    if total_volume > 1:
+        return float(np.clip(foreign_net / total_volume, -1.0, 1.0))
+    return 0.0
 
 
 def _linear_trend(values: np.ndarray) -> float:
@@ -180,9 +196,15 @@ def compute_smart_money(ticker: str, last_n: int = 20) -> SmartMoneySignal:
     if sessions == 0:
         return _empty_signal(ticker, sessions=0)
 
-    # Tinh foreign_net_pct tung phien
+    # Tinh foreign_net_pct tung phien — unit-aware (FiinMarket VND hoặc KBS shares)
     df["net_pct"] = df.apply(
-        lambda r: _safe_net_pct(r["foreign_net"], r["total_volume"]), axis=1
+        lambda r: _safe_net_pct(
+            r["foreign_net"],
+            r["total_volume"],
+            r.get("foreign_buy",  0.0),
+            r.get("foreign_sell", 0.0),
+        ),
+        axis=1,
     )
 
     # Hom nay (dong cuoi cung)
@@ -196,10 +218,16 @@ def compute_smart_money(ticker: str, last_n: int = 20) -> SmartMoneySignal:
     foreign_trend = _linear_trend(window5)
 
     # Composite score
-    smart_money_score = float(np.clip(
-        _W_5D * foreign_net_5d + _W_TREND * foreign_trend,
-        -1.0, 1.0,
-    ))
+    # Khi chưa đủ MIN_SESSIONS: bỏ qua trend (chỉ 3-4 điểm → slope không đáng tin).
+    # Trend âm do tỷ lệ mua giảm dần có thể dominate khi net vẫn dương → false signal.
+    if sessions >= MIN_SESSIONS:
+        smart_money_score = float(np.clip(
+            _W_5D * foreign_net_5d + _W_TREND * foreign_trend,
+            -1.0, 1.0,
+        ))
+    else:
+        # Chưa đủ phiên: chỉ dùng net direction (bỏ qua trend)
+        smart_money_score = float(np.clip(foreign_net_5d, -1.0, 1.0))
 
     is_confirmed = (sessions >= MIN_SESSIONS) and (smart_money_score >= SM_CONFIRM_THRESHOLD)
     label = _label_from_score(smart_money_score, sessions)
