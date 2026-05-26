@@ -1,0 +1,186 @@
+Sprint 10: Go-Live Validator + Pre-flight Checklist (68/68 tests)
+
+## Sprint 10 — Hoàn thành (68/68 tests)
+
+### ml/go_live_checker.py — NEW MODULE
+Pre-flight KPI validator trước khi deploy real capital.
+
+**Dataclasses:**
+- `GoLiveConfig` — conservative params: p_min=0.70, max_pos=20%, sl_buf=2.0%,
+  rr_min=2.0, max_positions=5, min_capital=100M VND
+  - `validate() → list[str]` — config validation errors
+  - `is_valid() → bool`
+- `CheckResult` — name, passed, detail, value, is_warning
+- `GoLiveStatus` — checks, all_passed, hard_fails, warnings, score, total
+  - `score_pct` property
+  - `summary() → str` — GO-LIVE READY / NOT READY
+  - `failed_checks()` / `warning_checks()`
+
+**13 Pre-flight checks:**
+  1. LightGBM Model (alpha_model.pkl) tồn tại
+  2. Batch Calibrator (alpha_calibrator.pkl) tồn tại
+  3. E6 Rolling Calibrator (tồn tại + không stale > 7 ngày)
+  4. E5 Outcome Tracker (signal_log.db active)
+  5. E6 Calibrator Fitted (>= 10 samples)
+  6. Drift Alert Check (no active drift từ E5)
+  7. Portfolio Capital >= min_capital
+  8. P_min >= 0.60 (recommended 0.70)
+  9. SL Buffer >= 1.5%
+ 10. Max Position Size <= 30%
+ 11. R/R Filter >= 1.5:1
+ 12. Pipeline Imports (7 modules)
+ 13. E2 Trade Logger (trades.db sẵn sàng)
+
+**`run_go_live_checks(config, portfolio_capital) → GoLiveStatus`**
+- all_passed=True khi không có hard fail
+- Warnings không block Go-Live (E6 stale, missing DB files)
+
+### pages/10_go_live.py — NEW UI
+- GO / NO-GO banner (xanh nếu all_passed, đỏ nếu có hard fail)
+- KPI row: score, readiness%, hard_fails, warnings, status
+- Grouped checklist (✅/⚠️/❌ per check)
+- Conservative params sidebar: capital, p_min, max_pos, sl_buffer, rr_min
+- First Real Trade readiness: sizing table, manual checklist
+- Quick-fix links cho từng loại lỗi
+
+### ml/__init__.py
+- v8.0 → v9.0
+- Added: GoLiveConfig, CheckResult, GoLiveStatus, run_go_live_checks
+
+### Tests: 68/68 PASS
+- Section 1: GoLiveConfig (9 tests) — defaults, validate(), invalid params
+- Section 2: CheckResult (4 tests) — fields, is_warning
+- Section 3: Individual checks (18 tests) — model/cal/rolling/e5/capital/p_min/sl/pos/rr/pipeline/trades
+- Section 4: run_go_live_checks (8 tests) — returns GoLiveStatus, 13 checks, capital fail, p_min fail
+- Section 5: GoLiveStatus helpers (5 tests) — score_pct, failed/warning_checks, summary
+- Section 6: ml exports regression (24 tests) — S10 new + S9/S8/S7
+
+### Roadmap
+- Sprint 10: bcard → ✅ Hoàn thành, Go-Live modules green
+- S10 hero bar: ○ → S10 ✅
+
+## Sprint 9 — Hoàn thành (69/69 tests)
+
+### E6 Rolling Calibrator (ml/rolling_calibrator.py) — NEW MODULE
+- Re-fit IsotonicRegression(increasing=True) trên 90 resolved outcomes gần nhất
+- Artifacts: alpha_calibrator_rolling.pkl + alpha_calibrator_rolling_meta.json
+- `get_calibration_data(n, db_path)` — query signal_log.db, label=1 nếu WIN
+  - Loại trừ PENDING và EXPIRED; sort chronologically ASC
+- `fit_rolling_calibrator(n, min_samples, db_path, save_path, meta_path) → dict`
+  - status: "ok" | "insufficient_data" | "no_db"
+  - Saves pkl + JSON metadata (fit_at, n_samples, precision)
+- `load_rolling_calibrator(save_path) → IsotonicRegression | None`
+- `apply_rolling_calibration(p_raw_array, save_path, fallback_to_batch) → ndarray`
+  - Fallback tự động sang batch calibrator khi rolling chưa có
+  - Output clamped [0.0, 1.0]
+- `get_calibrator_status() → dict`
+  - is_fitted, last_fit_at, n_samples, precision, is_stale (>7d), needs_refit
+  - drift_alert (từ E5 get_signal_stats — best-effort)
+- `needs_weekly_refit(stale_days=7) → bool`
+  - True khi: chưa có file, hoặc last fit > stale_days ngày
+- Constants: ROLLING_CALIBRATOR_PATH, ROLLING_META_PATH, SIGNAL_LOG_DB
+
+### UI Page (pages/09_self_learning.py) — NEW
+- Title: "🤖 Hybrid Self-Learning (E6)"
+- Drift Alert banner + needs_refit warning
+- KPI row: is_fitted, n_samples, precision, last_fit, stale?
+- "🔄 Re-fit ngay" button → fit_rolling_calibrator() → st.rerun()
+- Calibration Curve: scatter p_raw vs label + isotonic curve + drift threshold 30%
+- Training data table (resolved outcomes)
+- Demo panel: apply_rolling_calibration() trên dải p_raw
+- Workflow guide: Hybrid 4-bước (expandable)
+
+### ml/__init__.py
+- v7.0 → v8.0
+- Added: get_calibration_data, fit_rolling_calibrator, load_rolling_calibrator,
+  apply_rolling_calibration, get_calibrator_status, needs_weekly_refit,
+  ROLLING_CALIBRATOR_PATH, ROLLING_META_PATH
+
+### Tests: 69/69 PASS
+- Section 1: get_calibration_data (10 tests) — empty DB, columns, label mapping, n limit, PENDING/EXPIRED excluded, sort
+- Section 2: fit_rolling_calibrator (9 tests) — no_db, insufficient_data, ok, pkl created, meta JSON
+- Section 3: load_rolling_calibrator (4 tests) — no file, valid, invalid pkl
+- Section 4: apply_rolling_calibration (6 tests) — no cal, with cal, [0,1] bounds, list input
+- Section 5: get_calibrator_status (7 tests) — keys, is_fitted, stale
+- Section 6: needs_weekly_refit (5 tests) — no file, fresh, stale, stale_days param
+- Section 7: ml.__init__ exports (18 tests) — E6 new + S8/S7 regression
+
+### Roadmap
+- Sprint 9: bcard → ✅ Hoàn thành, modules green
+- E2/E3/E4/E6 module badges: st-todo → st-done
+- S9 hero bar: 🧠 → S9 ✅
+
+## Sprint 8 — Hoàn thành (79/79 tests)
+
+### E5 Outcome Tracker (ml/outcome_tracker.py) — NEW MODULE
+- SQLite signal_log.db (data/db/signal_log.db)
+- Tables: signal_log (ticker, entry/sl/target, p_calibrated, regime...) + signal_outcomes (WIN/LOSS/FLAT/PENDING/EXPIRED)
+- `log_signal(alert_card)` → int (upsert idempotent)
+- `log_signals_batch(alert_cards)` → list[int]
+- `check_pending_outcomes(as_of_date)` → list[dict] — T+5 OHLCV resolve
+- `get_signal_stats()` → precision, win_rate, avg_pnl, rolling_30d, drift_alert flag
+- `get_outcome_table()` → full table for UI
+- Drift Alert: rolling precision < 0.30 × total >= 10 → drift_alert=True
+
+### E2 Trade Logger (data/trade_logger.py) — NEW MODULE
+- SQLite trades.db (data/db/trades.db)
+- `add_trade(ticker, entry_date, entry_price, shares, sl, target, type)` → int
+- `close_trade(trade_id, exit_date, exit_price, status)` → dict
+- `get_open_trades()`, `get_all_trades()`, `update_unrealized_pnl()`
+- `get_trade_stats()` → win_rate, profit_factor, avg_win/loss_pct, total_pnl_vnd
+
+### E3 P&L Tracker (ml/pnl_tracker.py) — NEW MODULE
+- Pure computation (no DB)
+- `compute_trade_pnl(trade)` → r_multiple, max_loss_vnd, risk_reward
+- `compute_equity_curve(trades, capital)` → DataFrame with drawdown_pct
+- `compute_win_streak(trades)` → (current_streak, max_streak)
+- `compute_stats(trades, capital)` → full stats with Sharpe ratio
+
+### UI Pages
+- pages/07_trade_journal.py — 3 tabs: Nhập Lệnh | Nhật Ký | P&L & Stats
+- pages/08_outcome_tracker.py — Drift Alert + signal log + precision trend
+
+### Tests: 79/79 PASS
+### Roadmap: Sprint 8 → ✅ Hoàn thành
+
+### D3.4 Conviction Sizing (ml/portfolio_sizing.py)
+- `compute_conviction_size(p_calibrated, regime_max_positions)` → float [0,1]
+  - P_cal >= 0.70 → 30% (HIGH CONVICTION)
+  - P_cal <  0.70 → 20% (STANDARD)
+  - Bounded by: min(conviction_size, 1/regime_max_positions)
+
+### D3.5 Alert Generator (ml/alert_generator.py) — NEW MODULE
+- `AlertCard` dataclass: ticker, date, action, entry_lo, entry_hi,
+  sl_price, target_price, rr_ratio, sl_pct, position_size_pct,
+  position_size_vnd, shares, p_calibrated, p_raw, recommendation,
+  ci_lo, ci_hi, regime_state, regime_max_pos, reason
+- `PortfolioUsage` dataclass: picks_count, max_positions,
+  total_allocated_pct, remaining_pct, capital_deployed_vnd,
+  capital_remaining_vnd, is_full
+- `generate_alert(pick, portfolio_capital)` → AlertCard | None
+- `generate_morning_report(picks, capital)` → list[AlertCard]
+- `compute_portfolio_usage(alerts, max_positions, capital)` → PortfolioUsage
+- `_build_reason(pick)` → str (Wyckoff/SM/RS/Vol priority, max 4 parts)
+
+### UI v2 (pages/06_alpha_signals.py)
+- 4a: Full-width regime banner (BULL=green, BEAR=red, BEAR_WEAK=orange, else info)
+- 4b: Portfolio Usage sidebar widget (% deployed/remaining, progress bar, VND)
+- 4c: Morning Report Cards section with conviction size, entry/SL/target cols,
+      copyable alert text via st.code()
+
+### ml/__init__.py
+- Added exports: compute_conviction_size, AlertCard, PortfolioUsage,
+  generate_alert, generate_morning_report, compute_portfolio_usage, _build_reason
+- Version comment: v5.0 → v6.0
+
+### Tests
+- _test_sprint7.py: 55/55 PASS
+  - Section 1: compute_conviction_size (9 tests)
+  - Section 2: AlertCard generation (12 tests)
+  - Section 3: _build_reason (6 tests)
+  - Section 4: PortfolioUsage (11 tests)
+  - Section 5: generate_morning_report (6 tests)
+  - Section 6: ml.__init__ exports (11 tests)
+
+### Roadmap
+- docs/alpha_signal_roadmap.html: Sprint 7 → ✅ Hoàn thành (was ⚡)

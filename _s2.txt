@@ -1,0 +1,15 @@
+============================================================
+Sprint 2 Tests
+============================================================
+T1 compute_stock_rs: STRONG=+0.5474 (Outperform), WEAK=-0.6096 (Underperform), BULL=-0.3309 (Underperform)
+T2 insufficient data -> None: PASS
+T3 rank_by_rs: BULL=1.00, NEUT=0.00, BEAR=0.50 (PASS)
+T4 rank_by_rs single element: PASS
+T5 compute_entry_zone: entry=29,832-30,011, SL=28,385 (-5.1%), target=31,418, R:R=1:1.0
+T6 EntryZone.is_valid() D3.3 filter: PASS
+T7 insufficient data -> None: PASS
+T8 RSInfo.as_dict() serializable: PASS
+T9 EntryZone.as_dict() serializable: PASS
+
+ALL SPRINT 2 TESTS PASSED
+

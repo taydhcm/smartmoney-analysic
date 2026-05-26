@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Alpha Signal System — Hướng Dẫn Sử Dụng</title>
+<style>
+:root{
+  --c0:#0f172a; --c1:#1e293b; --c2:#334155; --c3:#475569;
+  --blue:#3b82f6; --blue-d:#1d4ed8; --blue-lt:#dbeafe;
+  --cyan:#06b6d4; --cyan-lt:#cffafe;
+  --green:#22c55e; --green-d:#16a34a; --green-lt:#dcfce7;
+  --yellow:#f59e0b; --yellow-lt:#fef3c7;
+  --orange:#f97316; --orange-lt:#ffedd5;
+  --red:#ef4444; --red-lt:#fee2e2;
+  --purple:#a855f7; --purple-lt:#f3e8ff;
+  --border:#e2e8f0; --shadow:0 4px 16px rgba(0,0,0,.08);
+  --r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f1f5f9;color:#1e293b;line-height:1.65;font-size:14px}
+.page{max-width:1100px;margin:0 auto;padding:32px 20px 100px}
+
+h2{font-size:1.25rem;font-weight:800}
+h3{font-size:1rem;font-weight:700;margin-bottom:6px}
+h4{font-size:.88rem;font-weight:700;color:#334155}
+p{margin-bottom:.6rem}
+ul,ol{padding-left:1.4rem;margin-bottom:.7rem}
+li{margin-bottom:.3rem}
+code{font-family:'Fira Code','Consolas',monospace;font-size:.82em;background:#e2e8f0;padding:1px 6px;border-radius:3px;color:#0f172a}
+
+a{color:var(--blue-d);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── Hero ── */
+.hero{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 55%,#312e81 100%);border-radius:16px;padding:48px 40px;color:#fff;margin-bottom:28px;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-60px;top:-60px;width:320px;height:320px;border-radius:50%;background:rgba(59,130,246,.13);pointer-events:none}
+.hero h1{font-size:2rem;font-weight:900;line-height:1.2;position:relative}
+.hero h1 em{color:#38bdf8;font-style:normal}
+.hero .sub{margin-top:10px;font-size:.9rem;opacity:.7;position:relative}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;position:relative}
+.pill{padding:4px 14px;border-radius:20px;font-size:.75rem;font-weight:700;border:1px solid rgba(255,255,255,.3)}
+
+/* ── TOC ── */
+.toc{background:#fff;border-radius:var(--r);padding:22px 28px;margin-bottom:24px;box-shadow:var(--shadow);display:flex;flex-wrap:wrap;gap:12px 24px}
+.toc-title{width:100%;font-weight:800;font-size:.85rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.toc a{color:var(--blue-d);font-size:.84rem;font-weight:500}
+
+/* ── Section ── */
+.section{background:#fff;border-radius:var(--r);padding:26px 30px;margin-bottom:24px;box-shadow:var(--shadow)}
+.sec-title{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid var(--border)}
+.sec-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.sec-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;display:block}
+
+/* ── Page cards ── */
+.page-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:4px}
+.pc{border-radius:var(--r);border:1px solid var(--border);padding:18px;position:relative;transition:box-shadow .15s}
+.pc:hover{box-shadow:var(--shadow)}
+.pc-num{position:absolute;top:14px;right:16px;font-size:.68rem;font-weight:700;color:#94a3b8;background:#f1f5f9;border-radius:4px;padding:1px 6px}
+.pc-icon{font-size:1.4rem;margin-bottom:8px}
+.pc-title{font-weight:800;font-size:.9rem;margin-bottom:4px}
+.pc-sub{font-size:.78rem;color:#64748b;margin-bottom:8px}
+.pc-tags{display:flex;flex-wrap:wrap;gap:5px}
+.tag{font-size:.68rem;font-weight:700;border-radius:4px;padding:2px 7px}
+
+/* ── Step flow ── */
+.steps{display:flex;flex-direction:column;gap:0}
+.step{display:flex;gap:18px;align-items:flex-start;padding:16px 0}
+.step+.step{border-top:1px solid var(--border)}
+.step-num{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:800;flex-shrink:0;color:#fff}
+.step-body{flex:1;min-width:0}
+.step-title{font-weight:800;font-size:.92rem;margin-bottom:4px}
+.step-desc{font-size:.83rem;color:#475569}
+
+/* ── Info boxes ── */
+.info{border-radius:8px;padding:14px 18px;margin-bottom:12px;font-size:.83rem}
+.info-tip   {background:var(--blue-lt);border-left:3px solid var(--blue)}
+.info-warn  {background:var(--yellow-lt);border-left:3px solid var(--yellow)}
+.info-danger{background:var(--red-lt);border-left:3px solid var(--red)}
+.info-ok    {background:var(--green-lt);border-left:3px solid var(--green)}
+.info-purple{background:var(--purple-lt);border-left:3px solid var(--purple)}
+.info strong{color:inherit}
+
+/* ── Table ── */
+table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:8px}
+th{text-align:left;padding:8px 10px;background:#f8fafc;color:#475569;font-weight:700;border-bottom:2px solid var(--border)}
+td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+
+/* ── Param card ── */
+.param-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:8px}
+.param-card{background:#f8fafc;border-radius:8px;padding:12px;border:1px solid var(--border)}
+.param-card .pk{font-size:.75rem;color:#64748b;font-weight:600;margin-bottom:2px}
+.param-card .pv{font-size:1.05rem;font-weight:800;color:#0f172a}
+.param-card .pd{font-size:.73rem;color:#94a3b8;margin-top:2px}
+
+/* ── Signal badge ── */
+.sig{display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:4px 10px;font-size:.78rem;font-weight:700}
+.sig-strong{background:#dcfce7;color:#166534}
+.sig-mild  {background:#fef3c7;color:#92400e}
+.sig-none  {background:#f1f5f9;color:#64748b}
+.sig-bear  {background:#fee2e2;color:#991b1b}
+
+/* ── FAQ ── */
+.faq-item{border-bottom:1px solid var(--border);padding:14px 0}
+.faq-item:last-child{border-bottom:none}
+.faq-q{font-weight:700;font-size:.88rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.faq-a{font-size:.82rem;color:#475569;margin-top:8px}
+
+/* ── Workflow day ── */
+.day-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:650px){.day-grid{grid-template-columns:1fr}.page-cards{grid-template-columns:1fr}}
+
+.day-box{background:#f8fafc;border-radius:8px;border:1px solid var(--border);padding:14px 16px}
+.day-box h4{color:#0f172a;margin-bottom:8px;font-size:.84rem}
+.day-box li{font-size:.8rem;color:#475569}
+
+/* ── Regime table ── */
+.regime-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9}
+.regime-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+
+/* ── Risk rules ── */
+.risk-rule{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--border)}
+.risk-rule:last-child{border-bottom:none}
+.risk-icon{font-size:1.3rem;flex-shrink:0;line-height:1}
+.risk-body .rt{font-weight:700;font-size:.88rem}
+.risk-body .rd{font-size:.8rem;color:#475569;margin-top:3px}
+
+/* ── Lifecycle ── */
+.lc{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.lc-box{flex:1;min-width:140px;background:#f8fafc;border-radius:8px;padding:12px;border:1px solid var(--border);text-align:center}
+.lc-icon{font-size:1.6rem}
+.lc-label{font-size:.73rem;font-weight:700;color:#64748b;margin-top:4px}
+.lc-arrow{display:flex;align-items:center;color:#94a3b8;font-size:1.2rem;padding-top:20px}
+
+/* ── Footer ── */
+.footer{text-align:center;color:#94a3b8;font-size:.75rem;margin-top:48px;padding-top:24px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ═══════════ HERO ═══════════ -->
+<div class="hero">
+  <h1>📖 Hướng Dẫn Sử Dụng<br><em>Alpha Signal System</em></h1>
+  <div class="sub">Hệ thống dự đoán tín hiệu mua VN30 dựa trên Machine Learning — Phiên bản v10.0</div>
+  <div class="pills">
+    <span class="pill" style="background:rgba(34,197,94,.2);color:#86efac">11 Trang Giao Diện</span>
+    <span class="pill" style="background:rgba(59,130,246,.2);color:#93c5fd">LightGBM + Isotonic Calibration</span>
+    <span class="pill" style="background:rgba(168,85,247,.2);color:#d8b4fe">Hybrid Self-Learning</span>
+    <span class="pill" style="background:rgba(245,158,11,.2);color:#fcd34d">VN30 · HOSE</span>
+    <span class="pill" style="background:rgba(239,68,68,.2);color:#fca5a5">Cập nhật: Tháng 5/2026</span>
+  </div>
+</div>
+
+<!-- ═══════════ TOC ═══════════ -->
+<div class="toc">
+  <div class="toc-title">Mục Lục</div>
+  <a href="#overview">1. Tổng Quan Hệ Thống</a>
+  <a href="#architecture">2. Kiến Trúc ML Pipeline</a>
+  <a href="#daily-workflow">3. Quy Trình Hàng Ngày</a>
+  <a href="#pages">4. Hướng Dẫn Từng Trang</a>
+  <a href="#signals">5. Cách Đọc Tín Hiệu Alpha</a>
+  <a href="#regime">6. Market Regime Gate</a>
+  <a href="#sizing">7. Sizing & Quản Lý Vốn</a>
+  <a href="#risk">8. Quy Tắc Rủi Ro</a>
+  <a href="#lifecycle">9. Vòng Đời Giao Dịch</a>
+  <a href="#scale">10. Lộ Trình Scale Vốn</a>
+  <a href="#faq">11. FAQ</a>
+</div>
+
+<!-- ═══════════ 1. TỔNG QUAN ═══════════ -->
+<div class="section" id="overview">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#eff6ff">🎯</div>
+    <div>
+      <span class="sec-label">Mục 1</span>
+      <h2>Tổng Quan Hệ Thống</h2>
+    </div>
+  </div>
+
+  <p>
+    <strong>Alpha Signal System</strong> là bộ công cụ phân tích và giao dịch cổ phiếu VN30 hoạt động trên Streamlit,
+    kết hợp <strong>Machine Learning (LightGBM)</strong>, phân tích Smart Money, và Hybrid Self-Learning.
+    Hệ thống dự đoán xác suất một cổ phiếu tăng <strong>≥ +5% trong 5 phiên tiếp theo mà không chạm SL -5%</strong>.
+  </p>
+
+  <div class="info info-tip">
+    <strong>Mục đích:</strong> Hỗ trợ ra quyết định mua/không mua — KHÔNG phải bot tự động.
+    Trader vẫn cần phán đoán cuối cùng dựa trên context thị trường ngày hôm đó.
+  </div>
+
+  <div class="param-grid" style="margin-top:16px">
+    <div class="param-card">
+      <div class="pk">Universe</div>
+      <div class="pv">VN30</div>
+      <div class="pd">30 mã blue-chip HOSE</div>
+    </div>
+    <div class="param-card">
+      <div class="pk">Label / Target</div>
+      <div class="pv">+5% / -5%</div>
+      <div class="pd">Tăng ≥5% trước khi chạm SL trong T+5</div>
+    </div>
+    <div class="param-card">
+      <div class="pk">Model chính</div>
+      <div class="pv">LightGBM</div>
+      <div class="pd">35 features · TimeSeriesSplit CV · v5_calibrated</div>
+    </div>
+    <div class="param-card">
+      <div class="pk">Calibration</div>
+      <div class="pv">Isotonic</div>
+      <div class="pd">Batch + Rolling (E6) hằng tuần</div>
+    </div>
+    <div class="param-card">
+      <div class="pk">P_min khuyến nghị</div>
+      <div class="pv">≥ 0.70</div>
+      <div class="pd">Cho lệnh real; paper có thể 0.65</div>
+    </div>
+    <div class="param-card">
+      <div class="pk">Max position</div>
+      <div class="pv">20% vốn</div>
+      <div class="pd">Stage 1 (go-live). Scale sau 30 lệnh</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 2. KIẾN TRÚC ═══════════ -->
+<div class="section" id="architecture">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#f0fdfa">🏗️</div>
+    <div>
+      <span class="sec-label">Mục 2</span>
+      <h2>Kiến Trúc ML Pipeline</h2>
+    </div>
+  </div>
+
+  <p style="margin-bottom:16px">Hệ thống gồm <strong>5 lớp</strong> xử lý tuần tự từ dữ liệu thô đến tín hiệu giao dịch:</p>
+
+  <!-- Layer D -->
+  <div style="border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-bottom:10px">
+    <div style="background:#dbeafe;padding:10px 16px;font-weight:800;font-size:.82rem;color:#1e40af">
+      🗄️ LỚP D — Data Collection
+      <span style="font-weight:400;color:#3b82f6;font-size:.75rem;margin-left:8px">D0.1 OHLCV · D0.2 Daily Snapshot · D0.3 Sector</span>
+    </div>
+    <div style="padding:12px 16px;font-size:.82rem;color:#334155">
+      Thu thập <strong>OHLCV</strong> từ VNStock (VCI source), ghi <strong>snapshot hằng ngày</strong> lúc 15:05
+      (foreign buy/sell, market breadth, close price) vào SQLite <code>snapshots.db</code>.
+      Sau <strong>30 phiên</strong> D0.2 sẽ kích hoạt S4 Smart Money features mạnh hơn.
+    </div>
+  </div>
+
+  <!-- Layer S -->
+  <div style="border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-bottom:10px">
+    <div style="background:#dcfce7;padding:10px 16px;font-weight:800;font-size:.82rem;color:#166534">
+      ⚙️ LỚP S — Feature Engineering (35 features)
+      <span style="font-weight:400;color:#22c55e;font-size:.75rem;margin-left:8px">S1 Wyckoff · S2 RS · S3 Regime · S4 Smart Money · S5 Entry</span>
+    </div>
+    <div style="padding:12px 16px;font-size:.82rem;color:#334155">
+      <strong>S1</strong> Wyckoff VSA (Spring, UTAD, Absorption) — <strong>S2</strong> Relative Strength vs VN30 —
+      <strong>S3</strong> Market Regime (Bull/Bear/Neutral) — <strong>S4</strong> Smart Money Flow (foreign + institutional) —
+      <strong>S5</strong> Entry Zone (SMA, RSI, BB). Tổng <strong>35 features</strong>.
+    </div>
+  </div>
+
+  <!-- Layer M -->
+  <div style="border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-bottom:10px">
+    <div style="background:#fef3c7;padding:10px 16px;font-weight:800;font-size:.82rem;color:#92400e">
+      🧠 LỚP M — Model & Prediction
+      <span style="font-weight:400;color:#f59e0b;font-size:.75rem;margin-left:8px">M1 LightGBM · M2 Calibration · M3 Retrain (2 tuần)</span>
+    </div>
+    <div style="padding:12px 16px;font-size:.82rem;color:#334155">
+      <strong>M1</strong> LightGBM với pos_weight=5 (class imbalance) + TimeSeriesSplit cross-validation —
+      <strong>M2</strong> Isotonic Regression calibration để đưa probability về thực tế —
+      <strong>M3</strong> Retrain batch mỗi 2 tuần với full VN30 6-month data.
+    </div>
+  </div>
+
+  <!-- Layer D3 -->
+  <div style="border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-bottom:10px">
+    <div style="background:#ffedd5;padding:10px 16px;font-weight:800;font-size:.82rem;color:#9a3412">
+      📐 LỚP D3 — Decision Engine
+      <span style="font-weight:400;color:#f97316;font-size:.75rem;margin-left:8px">D3.1 Regime Gate · D3.4 Conviction Sizing · D3.5 Alert Generator</span>
+    </div>
+    <div style="padding:12px 16px;font-size:.82rem;color:#334155">
+      <strong>D3.1</strong> Regime Gate — tắt long khi BEAR, nâng P_min khi BEAR_WEAK —
+      <strong>D3.4</strong> Conviction Sizing — tính số tiền mỗi lệnh theo Kelly % và P_alpha —
+      <strong>D3.5</strong> Morning Report — tạo alert card với entry zone, SL, target, R/R.
+    </div>
+  </div>
+
+  <!-- Layer E -->
+  <div style="border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+    <div style="background:#f3e8ff;padding:10px 16px;font-weight:800;font-size:.82rem;color:#4a1d96">
+      📊 LỚP E — Execution & Self-Learning
+      <span style="font-weight:400;color:#a855f7;font-size:.75rem;margin-left:8px">E2 Trade Log · E3 P&amp;L · E5 Outcome · E6 Rolling Calibrator</span>
+    </div>
+    <div style="padding:12px 16px;font-size:.82rem;color:#334155">
+      <strong>E2</strong> Trade Journal (paper + real) — <strong>E3</strong> P&amp;L Tracker, equity curve, drawdown —
+      <strong>E5</strong> Outcome Tracker — tự động kiểm tra T+5 outcome cho mỗi signal —
+      <strong>E6</strong> Rolling IsotonicRegression Calibrator — re-fit hằng tuần dựa trên outcomes thực.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 3. QUY TRÌNH NGÀY ═══════════ -->
+<div class="section" id="daily-workflow">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#fef3c7">📅</div>
+    <div>
+      <span class="sec-label">Mục 3</span>
+      <h2>Quy Trình Hàng Ngày</h2>
+    </div>
+  </div>
+
+  <div class="day-grid" style="margin-bottom:20px">
+    <div class="day-box">
+      <h4>🌅 Trước giờ mở cửa (8:45–9:00)</h4>
+      <ul>
+        <li>Mở trang <strong>01 Market Overview</strong> — đọc VNIndex, breadth hôm qua</li>
+        <li>Mở trang <strong>06 Alpha Signals</strong> — chạy dự đoán VN30</li>
+        <li>Đọc Market Regime Banner — nếu <strong>BEAR → không vào lệnh</strong></li>
+        <li>Xem Morning Report (Alert Cards) — lọc top picks P ≥ 0.70</li>
+        <li>Kiểm tra R/R ≥ 2.0 và Entry Zone cho từng signal</li>
+      </ul>
+    </div>
+    <div class="day-box">
+      <h4>📊 Trong giờ giao dịch (9:00–14:45)</h4>
+      <ul>
+        <li>Chỉ vào lệnh khi giá về <strong>Entry Zone</strong> (xanh) trong ngày</li>
+        <li>Xác nhận volume ≥ trung bình 20 phiên trước khi bấm mua</li>
+        <li>Đặt SL ngay sau khi khớp lệnh</li>
+        <li>Ghi lệnh vào <strong>07 Trade Journal</strong> (paper trước khi real)</li>
+      </ul>
+    </div>
+    <div class="day-box">
+      <h4>🔔 Sau đóng cửa (15:05–15:30)</h4>
+      <ul>
+        <li>Bấm <strong>"📥 Log hôm nay"</strong> trong sidebar trang 06 — ghi D0.2 snapshot</li>
+        <li>Mở trang <strong>08 Outcome Tracker</strong> → bấm "🔍 Kiểm tra T+5 ngay"</li>
+        <li>Cập nhật unrealized PnL cho lệnh đang mở trong Trade Journal</li>
+        <li>Kiểm tra Drift Alert — nếu đỏ thì cần re-fit E6</li>
+      </ul>
+    </div>
+    <div class="day-box">
+      <h4>📆 Hàng tuần (thứ 6 / thứ 2)</h4>
+      <ul>
+        <li>Mở trang <strong>09 Self-Learning</strong> → bấm <strong>"Re-fit ngay"</strong> (E6)</li>
+        <li>Mở trang <strong>11 Monitoring</strong> → kiểm tra health check</li>
+        <li>Nếu model_age_days ≥ 14 → chạy <code>train_pipeline.py --retrain</code></li>
+        <li>Review P&amp;L tuần tại trang 07 tab "📈 P&amp;L &amp; Stats"</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="info info-warn">
+    <strong>⚠️ Quan trọng:</strong> Hệ thống cần <strong>ít nhất 5 phiên D0.2 snapshot</strong> để bật S4 Smart Money features.
+    Nếu mới setup, chạy <code>daily_snapshot.py</code> hoặc bấm "Log hôm nay" mỗi chiều trong 5–7 ngày đầu.
+  </div>
+</div>
+
+<!-- ═══════════ 4. HƯỚNG DẪN TỪNG TRANG ═══════════ -->
+<div class="section" id="pages">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#f0fdfa">📋</div>
+    <div>
+      <span class="sec-label">Mục 4</span>
+      <h2>Hướng Dẫn Từng Trang</h2>
+    </div>
+  </div>
+
+  <div class="page-cards">
+
+    <!-- 01 -->
+    <div class="pc">
+      <div class="pc-num">01</div>
+      <div class="pc-icon">🏛️</div>
+      <div class="pc-title">Market Overview</div>
+      <div class="pc-sub">Bức tranh tổng quan thị trường hôm nay</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#dbeafe;color:#1e40af">VNINDEX</span>
+        <span class="tag" style="background:#dcfce7;color:#166534">Breadth</span>
+        <span class="tag" style="background:#f3e8ff;color:#4a1d96">Khối Ngoại</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Cách dùng:</strong> Đọc VNIndex candlestick + volume, xem tỉ lệ tăng/giảm/đứng giá (market breadth).
+        Top khối ngoại mua ròng gợi ý sector/mã đang được dòng tiền lớn ưu thích.
+        <br><br>
+        <strong>Chú ý:</strong> Nếu breadth trần &lt; 5 và floor &gt; 20 → thị trường yếu, cân nhắc bỏ qua signal.
+      </div>
+    </div>
+
+    <!-- 02 -->
+    <div class="pc">
+      <div class="pc-num">02</div>
+      <div class="pc-icon">💰</div>
+      <div class="pc-title">Foreign Flow</div>
+      <div class="pc-sub">Dòng tiền khối ngoại theo mã & ngành</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#dbeafe;color:#1e40af">Buy/Sell Net</span>
+        <span class="tag" style="background:#dcfce7;color:#166534">Room ngoại</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Cách dùng:</strong> Tìm mã VN30 có khối ngoại mua ròng liên tục 3–5 phiên.
+        Kết hợp với Alpha Signal P_alpha cao → xác suất vào lệnh thắng tăng.
+        <br><br>
+        <strong>Lọc:</strong> Ưu tiên mã còn room ngoại &gt; 40% để tránh mã kẹt foreign room.
+      </div>
+    </div>
+
+    <!-- 03 -->
+    <div class="pc">
+      <div class="pc-num">03</div>
+      <div class="pc-icon">🏭</div>
+      <div class="pc-title">Sector Analysis</div>
+      <div class="pc-sub">Rotation ngành &amp; sector momentum</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#fef3c7;color:#92400e">Sector Rotation</span>
+        <span class="tag" style="background:#ffedd5;color:#9a3412">Heatmap</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Cách dùng:</strong> Xem heatmap ngành — ngành xanh đậm đang dẫn dắt.
+        Vào lệnh mã thuộc ngành đang leads (rotation phase) tăng xác suất thắng.
+        <br><br>
+        <strong>Tips:</strong> BĐS + Tài chính thường dẫn đầu khi VNIndex bứt phá.
+      </div>
+    </div>
+
+    <!-- 04 -->
+    <div class="pc">
+      <div class="pc-num">04</div>
+      <div class="pc-icon">🔍</div>
+      <div class="pc-title">Stock Detail</div>
+      <div class="pc-sub">Phân tích sâu 1 mã cổ phiếu</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#dcfce7;color:#166534">Candlestick</span>
+        <span class="tag" style="background:#dbeafe;color:#1e40af">Smart Money Score</span>
+        <span class="tag" style="background:#f3e8ff;color:#4a1d96">OBV</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Cách dùng:</strong> Nhập mã, chọn kỳ. Xem <strong>Smart Money Score</strong> (0–100):
+        ≥ 60 → strong buy signal. Kiểm tra OBV tăng dần khi giá đi ngang = dấu hiệu tích lũy.
+        <br><br>
+        <strong>Wyckoff:</strong> Nếu phát hiện "Spring" hoặc "Absorption" → cơ hội vào lệnh tốt.
+      </div>
+    </div>
+
+    <!-- 05 -->
+    <div class="pc">
+      <div class="pc-num">05</div>
+      <div class="pc-icon">🤖</div>
+      <div class="pc-title">AI Smart Money</div>
+      <div class="pc-sub">Chat với AI Multi-Agent phân tích dòng tiền</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#f3e8ff;color:#4a1d96">LangGraph</span>
+        <span class="tag" style="background:#dbeafe;color:#1e40af">LLM Chat</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Cách dùng:</strong> Hỏi AI theo ngôn ngữ tự nhiên. Ví dụ: <em>"Smart money đang vào mã nào mạnh nhất?"</em>
+        hoặc <em>"Phân tích dòng tiền VIC 2 tuần qua"</em>.
+        <br><br>
+        <strong>Lưu ý:</strong> Cần cấu hình LLM API key trong <code>.env</code>. Dùng bổ trợ, không thay thế trang 06.
+      </div>
+    </div>
+
+    <!-- 06 -->
+    <div class="pc" style="border:2px solid #3b82f6">
+      <div class="pc-num">06 ⭐</div>
+      <div class="pc-icon">🎯</div>
+      <div class="pc-title">Alpha Signals</div>
+      <div class="pc-sub">Trang chính — ML prediction engine VN30</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#dbeafe;color:#1e40af">LightGBM</span>
+        <span class="tag" style="background:#dcfce7;color:#166534">P_alpha</span>
+        <span class="tag" style="background:#fef3c7;color:#92400e">Morning Report</span>
+        <span class="tag" style="background:#f3e8ff;color:#4a1d96">Sizing</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Trang quan trọng nhất.</strong> Xem hướng dẫn chi tiết ở <a href="#signals">Mục 5</a>.
+        Mỗi sáng chạy dự đoán tại đây, đọc Alert Cards, và quyết định vào lệnh.
+      </div>
+    </div>
+
+    <!-- 07 -->
+    <div class="pc">
+      <div class="pc-num">07</div>
+      <div class="pc-icon">📒</div>
+      <div class="pc-title">Trade Journal</div>
+      <div class="pc-sub">Nhật ký lệnh paper + real · P&amp;L · Equity Curve</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#dcfce7;color:#166534">Paper</span>
+        <span class="tag" style="background:#fee2e2;color:#991b1b">Real</span>
+        <span class="tag" style="background:#dbeafe;color:#1e40af">Equity</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Cách dùng:</strong>
+        <ul style="margin-top:6px">
+          <li>Tab <strong>"📝 Nhập Lệnh"</strong>: Điền ticker, giá vào, SL, target, số cổ → lưu.</li>
+          <li>Tab <strong>"📊 Nhật Ký"</strong>: Xem bảng + đóng lệnh khi chốt lời/cắt lỗ.</li>
+          <li>Tab <strong>"📈 P&amp;L"</strong>: Equity curve, win rate, max drawdown, Sharpe.</li>
+        </ul>
+        <strong>Quy tắc:</strong> <em>Luôn trade paper ≥ 30 lệnh trước khi chuyển sang real.</em>
+      </div>
+    </div>
+
+    <!-- 08 -->
+    <div class="pc">
+      <div class="pc-num">08</div>
+      <div class="pc-icon">🎯</div>
+      <div class="pc-title">Outcome Tracker</div>
+      <div class="pc-sub">E5 — Theo dõi kết quả signal T+5</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#dcfce7;color:#166534">WIN/LOSS</span>
+        <span class="tag" style="background:#fee2e2;color:#991b1b">Drift Alert</span>
+        <span class="tag" style="background:#dbeafe;color:#1e40af">Precision</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Cách dùng:</strong> Mỗi chiều sau 15:05, bấm <strong>"🔍 Kiểm tra T+5 ngay"</strong>.
+        Hệ thống tự resolve signal PENDING có ngày T+5 ≤ hôm nay.
+        <br><br>
+        <strong>Drift Alert</strong> (banner đỏ): Khi precision 30 ngày &lt; 30% → cần re-fit E6 hoặc retrain model ngay.
+      </div>
+    </div>
+
+    <!-- 09 -->
+    <div class="pc">
+      <div class="pc-num">09</div>
+      <div class="pc-icon">🧠</div>
+      <div class="pc-title">Self-Learning (E6)</div>
+      <div class="pc-sub">Rolling Calibrator — Hybrid Self-Learning</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#f3e8ff;color:#4a1d96">Isotonic</span>
+        <span class="tag" style="background:#fef3c7;color:#92400e">Weekly Re-fit</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Cách dùng:</strong>
+        <ul style="margin-top:6px">
+          <li>Xem <strong>Calibration Curve</strong> — đường fitted gần với diagonal → tốt.</li>
+          <li>Nếu <strong>"⚠️ Stale"</strong> hoặc Drift Alert → bấm <strong>"🔄 Re-fit ngay"</strong>.</li>
+          <li>Mỗi tuần 1 lần (thứ 2 sáng hoặc thứ 6 chiều).</li>
+        </ul>
+        <strong>Cần:</strong> Ít nhất 10 outcomes (WIN/LOSS) trong signal_log để re-fit có nghĩa.
+      </div>
+    </div>
+
+    <!-- 10 -->
+    <div class="pc">
+      <div class="pc-num">10</div>
+      <div class="pc-icon">🔴</div>
+      <div class="pc-title">Go-Live Validator</div>
+      <div class="pc-sub">Pre-flight checklist trước khi vào lệnh real</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#dcfce7;color:#166534">GO/NO-GO</span>
+        <span class="tag" style="background:#fee2e2;color:#991b1b">13 Checks</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Cách dùng:</strong> Mở trang trước mỗi lần chuyển từ paper sang real.
+        Cần <strong>13/13 checks xanh</strong> (hoặc chỉ có warnings, không có hard fails).
+        <br><br>
+        <strong>Hard Fail ví dụ:</strong> Không có model file, Drift Alert đang đỏ, vốn &lt; 100 triệu.
+        <br>
+        <strong>Warning ví dụ:</strong> E6 chưa fit, D0.2 &lt; 30 phiên.
+      </div>
+    </div>
+
+    <!-- 11 -->
+    <div class="pc">
+      <div class="pc-num">11</div>
+      <div class="pc-icon">📈</div>
+      <div class="pc-title">Long-term Monitoring</div>
+      <div class="pc-sub">Health check · Milestone · Scale Advisor</div>
+      <div class="pc-tags">
+        <span class="tag" style="background:#dcfce7;color:#166534">Health</span>
+        <span class="tag" style="background:#dbeafe;color:#1e40af">Scale</span>
+        <span class="tag" style="background:#fef3c7;color:#92400e">Milestone</span>
+      </div>
+      <div style="margin-top:12px;font-size:.8rem;color:#475569">
+        <strong>Cách dùng:</strong> Kiểm tra hàng tuần.
+        <ul style="margin-top:6px">
+          <li>KPI row: D0.2 depth, model age, E6 freshness, real trades.</li>
+          <li>Milestone Bar: theo dõi tiến độ đến 30 lệnh real.</li>
+          <li>Scale Readiness: 5 điều kiện — xanh hết thì tăng vốn 20%→30%.</li>
+          <li>Retrain Reminder: cảnh báo nếu model &gt; 14 ngày chưa retrain.</li>
+        </ul>
+      </div>
+    </div>
+
+  </div><!-- /page-cards -->
+</div>
+
+<!-- ═══════════ 5. ĐỌC TÍN HIỆU ALPHA ═══════════ -->
+<div class="section" id="signals">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#eff6ff">📡</div>
+    <div>
+      <span class="sec-label">Mục 5</span>
+      <h2>Cách Đọc Tín Hiệu Alpha — Trang 06</h2>
+    </div>
+  </div>
+
+  <h3 style="margin-bottom:12px">5.1 Các chỉ số cần quan tâm</h3>
+  <table>
+    <tr><th>Chỉ số</th><th>Ý nghĩa</th><th>Ngưỡng hành động</th></tr>
+    <tr>
+      <td><strong>P_alpha</strong></td>
+      <td>Xác suất đạt +5% trong T+5 (đã calibrate)</td>
+      <td><span class="sig sig-strong">≥ 0.70</span> Real &nbsp; <span class="sig sig-mild">0.60–0.69</span> Paper</td>
+    </tr>
+    <tr>
+      <td><strong>Confidence Band</strong></td>
+      <td>Wilson CI 95% — khoảng tin cậy của P_alpha</td>
+      <td>Lower bound ≥ 0.55 mới vào lệnh real</td>
+    </tr>
+    <tr>
+      <td><strong>RS Score</strong></td>
+      <td>Relative Strength vs VN30 (–1 đến +1)</td>
+      <td><span class="sig sig-strong">&gt; 0.5</span> mạnh &nbsp; <span class="sig sig-mild">0–0.5</span> trung bình</td>
+    </tr>
+    <tr>
+      <td><strong>Wyckoff Phase</strong></td>
+      <td>Giai đoạn Wyckoff (Accumulation/Markup/Distribution)</td>
+      <td>Ưu tiên <strong>Accumulation</strong> + Spring/UTAD</td>
+    </tr>
+    <tr>
+      <td><strong>Entry Zone</strong></td>
+      <td>Vùng giá tốt để vào lệnh (màu xanh/vàng/đỏ)</td>
+      <td>Chỉ vào lệnh khi giá thuộc <strong>Entry Zone xanh</strong></td>
+    </tr>
+    <tr>
+      <td><strong>R/R Ratio</strong></td>
+      <td>Risk/Reward = (Target - Entry) / (Entry - SL)</td>
+      <td><span class="sig sig-strong">≥ 2.0</span> bắt buộc cho real trade</td>
+    </tr>
+    <tr>
+      <td><strong>Vol Confirm</strong></td>
+      <td>Volume xác nhận breakout (relative volume)</td>
+      <td>RelVol ≥ 1.5× trung bình 20 phiên khi phá kháng cự</td>
+    </tr>
+    <tr>
+      <td><strong>Conviction Size</strong></td>
+      <td>Số tiền gợi ý cho lệnh (D3.4 Kelly-adjusted)</td>
+      <td>Không vượt quá <strong>20% portfolio</strong> (Stage 1)</td>
+    </tr>
+  </table>
+
+  <h3 style="margin-top:24px;margin-bottom:12px">5.2 Alert Card — Cách đọc Morning Report</h3>
+  <div style="background:#f8fafc;border-radius:8px;padding:16px;border:1px solid var(--border);font-size:.83rem">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <strong style="color:#166534">✅ Card màu xanh (STRONG BUY):</strong>
+        <ul style="margin-top:6px">
+          <li>P_alpha ≥ 0.70 + Regime không phải BEAR</li>
+          <li>RS Score &gt; 0.3 + Wyckoff Accumulation</li>
+          <li>R/R ≥ 2.0 + Entry Zone xanh</li>
+          <li>→ <strong>Vào lệnh real nếu giá về Entry Zone</strong></li>
+        </ul>
+      </div>
+      <div>
+        <strong style="color:#92400e">⚠️ Card màu vàng (WATCH):</strong>
+        <ul style="margin-top:6px">
+          <li>P_alpha 0.60–0.69 hoặc RS trung bình</li>
+          <li>Entry Zone chưa tới / R/R 1.5–2.0</li>
+          <li>Regime BULL_WEAK hoặc NEUTRAL</li>
+          <li>→ <strong>Paper trade, theo dõi thêm</strong></li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <strong style="color:#991b1b">🚫 Bỏ qua khi:</strong>
+      RSI &gt; 80 (overbought) · Regime BEAR · P_alpha &lt; 0.60 · R/R &lt; 1.5
+    </div>
+  </div>
+
+  <h3 style="margin-top:24px;margin-bottom:12px">5.3 Feature Importance — Hiểu Model Đang Nhìn Gì</h3>
+  <p style="font-size:.83rem;color:#475569">
+    Cuộn xuống trang 06, mục <strong>"Feature Importance"</strong> hiển thị top 15 features quan trọng nhất.
+    Các features thường đứng đầu:
+  </p>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;font-size:.79rem">
+    <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:3px 9px;font-weight:600">obv_trend_5d</span>
+    <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:3px 9px;font-weight:600">foreign_net_5d</span>
+    <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:3px 9px;font-weight:600">rs_score_20d</span>
+    <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:3px 9px;font-weight:600">wyckoff_phase</span>
+    <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:3px 9px;font-weight:600">mfi_14</span>
+    <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:3px 9px;font-weight:600">bb_position</span>
+    <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:3px 9px;font-weight:600">rel_vol_5d</span>
+    <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:3px 9px;font-weight:600">rsi_14</span>
+    <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:3px 9px;font-weight:600">regime_state</span>
+    <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:3px 9px;font-weight:600">spring_detected</span>
+  </div>
+</div>
+
+<!-- ═══════════ 6. REGIME GATE ═══════════ -->
+<div class="section" id="regime">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#f0fdfa">🌍</div>
+    <div>
+      <span class="sec-label">Mục 6</span>
+      <h2>Market Regime Gate (S3)</h2>
+    </div>
+  </div>
+  <p style="font-size:.83rem;color:#475569;margin-bottom:16px">
+    Regime Gate tự động điều chỉnh P_min và quyết định có phát signal không dựa trên trạng thái VN30.
+    Bật/tắt tại sidebar trang 06 (mặc định: <strong>BẬT</strong>).
+  </p>
+
+  <div class="regime-row">
+    <div class="regime-dot" style="background:#22c55e"></div>
+    <div style="font-size:.83rem">
+      <strong>BULL (🟢)</strong> — VN30 trên SMA20, RSI 50–70, breadth tốt.
+      P_min giữ nguyên (0.70). <strong>→ Giao dịch bình thường.</strong>
+    </div>
+  </div>
+  <div class="regime-row">
+    <div class="regime-dot" style="background:#86efac"></div>
+    <div style="font-size:.83rem">
+      <strong>BULL_WEAK (🟡)</strong> — Bull nhưng momentum yếu.
+      P_min tự động nâng lên 0.72–0.75. <strong>→ Chỉ vào lệnh tốt nhất.</strong>
+    </div>
+  </div>
+  <div class="regime-row">
+    <div class="regime-dot" style="background:#94a3b8"></div>
+    <div style="font-size:.83rem">
+      <strong>NEUTRAL (⚪)</strong> — VN30 đi ngang, không xu hướng rõ.
+      P_min nâng 0.73–0.75. <strong>→ Hạn chế số lệnh, ưu tiên paper.</strong>
+    </div>
+  </div>
+  <div class="regime-row">
+    <div class="regime-dot" style="background:#f97316"></div>
+    <div style="font-size:.83rem">
+      <strong>BEAR_WEAK (🟠)</strong> — Downtrend nhẹ.
+      P_min nâng 0.78+. Giảm max_positions xuống còn 2–3. <strong>→ Rất hạn chế.</strong>
+    </div>
+  </div>
+  <div class="regime-row" style="border-bottom:none">
+    <div class="regime-dot" style="background:#ef4444"></div>
+    <div style="font-size:.83rem">
+      <strong>BEAR (🔴)</strong> — Downtrend rõ ràng, VN30 dưới SMA20, RSI &lt; 40.
+      <strong style="color:#dc2626">→ Tắt toàn bộ long signal. Không vào lệnh.</strong>
+    </div>
+  </div>
+
+  <div class="info info-danger" style="margin-top:16px">
+    <strong>🚫 Nguyên tắc tuyệt đối:</strong> Khi Regime = BEAR và banner đỏ hiển thị
+    "<em>Tắt toàn bộ long signal hôm nay!</em>" — <strong>không vào lệnh dù P_alpha có cao đến đâu</strong>.
+  </div>
+</div>
+
+<!-- ═══════════ 7. SIZING ═══════════ -->
+<div class="section" id="sizing">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#fef3c7">💰</div>
+    <div>
+      <span class="sec-label">Mục 7</span>
+      <h2>Sizing &amp; Quản Lý Vốn (D3.4)</h2>
+    </div>
+  </div>
+
+  <p style="font-size:.83rem;margin-bottom:16px">
+    Hệ thống tính <strong>Conviction Size</strong> theo công thức Kelly điều chỉnh bảo thủ dựa trên P_alpha.
+    Để xem, nhập <strong>Vốn đầu tư</strong> vào sidebar trang 06 (ví dụ: 500 triệu).
+  </p>
+
+  <h3 style="margin-bottom:10px">7.1 Công thức sizing</h3>
+  <div style="background:#f8fafc;border-radius:8px;padding:16px;border:1px solid var(--border);font-size:.82rem;margin-bottom:16px">
+    <p><code>conviction_pct = f(P_alpha) × risk_adjustment</code></p>
+    <p style="margin-top:8px">Trong đó:</p>
+    <ul style="margin-top:4px">
+      <li><strong>P_alpha ≥ 0.80</strong> → conviction ~15–18% vốn</li>
+      <li><strong>P_alpha 0.70–0.79</strong> → conviction ~10–14% vốn</li>
+      <li><strong>P_alpha 0.65–0.69</strong> → conviction ~7–10% vốn (paper)</li>
+      <li>Luôn bị cap tại <strong>max_position_pct</strong> (Stage 1 = 20%)</li>
+    </ul>
+  </div>
+
+  <h3 style="margin-bottom:10px">7.2 Quy tắc vốn theo Stage</h3>
+  <table>
+    <tr><th>Stage</th><th>Max Position/Lệnh</th><th>Điều kiện</th><th>Max Positions</th></tr>
+    <tr>
+      <td><span class="sig sig-mild">Stage 1 · Go-Live</span></td>
+      <td>20% vốn</td>
+      <td>Mặc định (bắt đầu)</td>
+      <td>5 lệnh</td>
+    </tr>
+    <tr>
+      <td><span class="sig sig-strong">Stage 2 · Confirmed Edge</span></td>
+      <td>30% vốn</td>
+      <td>30 real lệnh + precision ≥ 35% + win_rate ≥ 45% + DD ≤ 15%</td>
+      <td>5 lệnh</td>
+    </tr>
+    <tr>
+      <td><span class="sig sig-strong">Stage 3 · Full Deploy</span></td>
+      <td>40% vốn</td>
+      <td>60 real lệnh + precision ≥ 40% + drawdown ≤ 10%</td>
+      <td>6 lệnh</td>
+    </tr>
+  </table>
+
+  <div class="info info-tip" style="margin-top:16px">
+    <strong>💡 Tips sizing thực tế:</strong> Không cần phải dùng đúng conviction_pct của hệ thống.
+    Nếu còn nghi ngờ, giảm size xuống 50%. Conviction Size chỉ là gợi ý tối đa hợp lý, không phải bắt buộc.
+  </div>
+</div>
+
+<!-- ═══════════ 8. RISK RULES ═══════════ -->
+<div class="section" id="risk">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#fee2e2">🛡️</div>
+    <div>
+      <span class="sec-label">Mục 8</span>
+      <h2>Quy Tắc Quản Lý Rủi Ro</h2>
+    </div>
+  </div>
+
+  <div class="risk-rule">
+    <div class="risk-icon">🔴</div>
+    <div class="risk-body">
+      <div class="rt">Rule 1 — Hard Stop Loss</div>
+      <div class="rd">SL đặt ngay sau khi khớp lệnh, không trễ. SL buffer tối thiểu 2% dưới entry.
+      Nếu giá chạm SL → bán ngay, không giữ chờ hồi. <strong>Đây là rule không thương lượng.</strong></div>
+    </div>
+  </div>
+
+  <div class="risk-rule">
+    <div class="risk-icon">📊</div>
+    <div class="risk-body">
+      <div class="rt">Rule 2 — R/R tối thiểu 2.0</div>
+      <div class="rd">Không vào lệnh nếu (Target - Entry) / (Entry - SL) &lt; 2.0 cho real trade.
+      Paper trade có thể nới xuống 1.5. Hệ thống tự tính và hiển thị trong Alert Card.</div>
+    </div>
+  </div>
+
+  <div class="risk-rule">
+    <div class="risk-icon">🚦</div>
+    <div class="risk-body">
+      <div class="rt">Rule 3 — Concentration Limit</div>
+      <div class="rd">Không quá <strong>5 lệnh mở cùng lúc</strong> (Stage 1). Không quá 2 lệnh cùng 1 ngành.
+      Tổng exposure &lt; 80% vốn (dành 20% cash buffer).</div>
+    </div>
+  </div>
+
+  <div class="risk-rule">
+    <div class="risk-icon">📉</div>
+    <div class="risk-body">
+      <div class="rt">Rule 4 — Portfolio Drawdown Circuit Breaker</div>
+      <div class="rd">Nếu portfolio drawdown vượt <strong>10%</strong> → dừng mở lệnh mới, review P&amp;L.
+      Drawdown vượt <strong>15%</strong> → chuyển toàn bộ về paper cho đến khi tìm được nguyên nhân.</div>
+    </div>
+  </div>
+
+  <div class="risk-rule">
+    <div class="risk-icon">⏰</div>
+    <div class="risk-body">
+      <div class="rt">Rule 5 — Time Stop</div>
+      <div class="rd">Nếu sau <strong>T+5 phiên</strong> lệnh chưa đạt target và chưa chạm SL → đánh giá lại.
+      Nếu thesis không còn đúng (regime thay đổi, tin xấu) → thoát dù lỗ nhẹ.</div>
+    </div>
+  </div>
+
+  <div class="risk-rule">
+    <div class="risk-icon">🌍</div>
+    <div class="risk-body">
+      <div class="rt">Rule 6 — Regime Override</div>
+      <div class="rd">Khi Regime = BEAR → đóng tất cả lệnh long có lợi nhuận dương. Không mở thêm lệnh mới.
+      Có thể giữ lệnh đang lỗ nếu SL chưa bị chạm (để tránh lock lỗ xấu thời điểm xấu).</div>
+    </div>
+  </div>
+
+  <div class="risk-rule" style="border-bottom:none">
+    <div class="risk-icon">🤖</div>
+    <div class="risk-body">
+      <div class="rt">Rule 7 — Model Drift Response</div>
+      <div class="rd">Khi Drift Alert đỏ (precision 30d &lt; 30%): giảm size còn 50%, tắt Regime Gate bằng tay,
+      re-fit E6 ngay. Nếu drift kéo dài &gt; 5 ngày → dừng giao dịch real, chờ sau khi retrain model.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 9. VÒNG ĐỜI GIAO DỊCH ═══════════ -->
+<div class="section" id="lifecycle">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#f0fdfa">🔄</div>
+    <div>
+      <span class="sec-label">Mục 9</span>
+      <h2>Vòng Đời Một Giao Dịch</h2>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num" style="background:#3b82f6">1</div>
+      <div class="step-body">
+        <div class="step-title">Signal phát ra — Trang 06 Alpha Signals</div>
+        <div class="step-desc">
+          Model chạy predict_all() → lọc P_alpha ≥ threshold → Alert Card được tạo.
+          Signal được tự động lưu vào <code>signal_log.db</code> khi bấm "Log signals hôm nay" ở trang 08.
+          <br><strong>Action:</strong> Đọc card, xác nhận Entry Zone + R/R + Regime.
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num" style="background:#22c55e">2</div>
+      <div class="step-body">
+        <div class="step-title">Quyết định vào lệnh — Chờ Entry Zone</div>
+        <div class="step-desc">
+          Không mua ngay khi thấy signal. Đặt giá chờ tại <strong>Entry Zone (xanh)</strong>.
+          Xác nhận volume trong ngày ≥ 1.5× TB20. Kiểm tra tin tức trên trang 04 Stock Detail.
+          <br><strong>Action:</strong> Đặt lệnh chờ + SL ngay khi khớp.
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num" style="background:#f59e0b">3</div>
+      <div class="step-body">
+        <div class="step-title">Ghi lệnh — Trang 07 Trade Journal</div>
+        <div class="step-desc">
+          Điền đầy đủ: ticker, ngày, giá vào, SL, target, số cổ, loại lệnh (paper/real), ghi chú.
+          Hệ thống tính R/R, max loss VND và ghi lại.
+          <br><strong>Action:</strong> Tab "📝 Nhập Lệnh" → Submit.
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num" style="background:#8b5cf6">4</div>
+      <div class="step-body">
+        <div class="step-title">Theo dõi lệnh — Cập nhật unrealized PnL</div>
+        <div class="step-desc">
+          Mỗi chiều sau 15:05 bấm "🔄 Cập nhật unrealized" để hệ thống lấy giá đóng cửa mới nhất.
+          Xem equity curve thay đổi. Nếu chạm SL → đóng lệnh ngay.
+          <br><strong>Action:</strong> Tab "📊 Nhật Ký" → nút đóng lệnh khi chốt.
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num" style="background:#ef4444">5</div>
+      <div class="step-body">
+        <div class="step-title">Đóng lệnh — Ghi outcome</div>
+        <div class="step-desc">
+          Khi đóng lệnh (đạt target / chạm SL / T+5): nhập giá thoát, hệ thống tính PnL thực.
+          Trang 08 Outcome Tracker sẽ tự resolve signal T+5 tương ứng thành WIN/LOSS.
+          <br><strong>Action:</strong> Tab "📊 Nhật Ký" → nút "✅ Đóng" → nhập exit price.
+        </div>
+      </div>
+    </div>
+    <div class="step" style="border-top:1px solid var(--border)">
+      <div class="step-num" style="background:#06b6d4">6</div>
+      <div class="step-body">
+        <div class="step-title">Feedback vào hệ thống — Trang 08 + 09</div>
+        <div class="step-desc">
+          Outcome (WIN/LOSS) từ E5 → feed vào E6 Rolling Calibrator khi re-fit hàng tuần.
+          Precision tổng thể và precision 30d được cập nhật → model tự cải thiện calibration theo thời gian.
+          <br><strong>Action:</strong> Trang 09 → "Re-fit ngay" (hàng tuần).
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 10. SCALE VỐN ═══════════ -->
+<div class="section" id="scale">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#dcfce7">🚀</div>
+    <div>
+      <span class="sec-label">Mục 10</span>
+      <h2>Lộ Trình Scale Vốn</h2>
+    </div>
+  </div>
+
+  <p style="font-size:.83rem;color:#475569;margin-bottom:16px">
+    Hệ thống kiểm tra <strong>5 điều kiện tự động</strong> tại trang 11 Monitoring → Scale Readiness.
+    Chỉ scale khi <strong>TẤT CẢ</strong> 5 điều kiện đạt.
+  </p>
+
+  <table>
+    <tr><th>#</th><th>Điều kiện</th><th>Ngưỡng</th><th>Nguồn dữ liệu</th></tr>
+    <tr>
+      <td>1</td>
+      <td>Số lệnh real đã đóng</td>
+      <td><strong>≥ 30 lệnh</strong></td>
+      <td>Trade Journal (E2)</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>Rolling precision (E6)</td>
+      <td><strong>≥ 35%</strong></td>
+      <td>Self-Learning (E6)</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>Win rate thực tế</td>
+      <td><strong>≥ 45%</strong></td>
+      <td>Trade stats (real)</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>Max drawdown portfolio</td>
+      <td><strong>≤ 15%</strong></td>
+      <td>P&amp;L Tracker (E3)</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>Drift Alert</td>
+      <td><strong>= False (không có alert)</strong></td>
+      <td>Outcome Tracker (E5)</td>
+    </tr>
+  </table>
+
+  <div class="info info-ok" style="margin-top:16px">
+    <strong>✅ Khi scale:</strong> Tăng <code>max_position_pct</code> từ 20% → 30% (Stage 2).
+    Cập nhật sidebar trang 10 (Go-Live Validator) và trang 11.
+    Không cần thay đổi code — chỉ điều chỉnh slider trên UI.
+  </div>
+  <div class="info info-warn" style="margin-top:4px">
+    <strong>⚠️ Nguyên tắc:</strong> Không bao giờ scale chỉ vì thị trường đang tốt.
+    Scale dựa vào <em>track record thực tế</em> của hệ thống, không phải cảm giác.
+  </div>
+</div>
+
+<!-- ═══════════ 11. FAQ ═══════════ -->
+<div class="section" id="faq">
+  <div class="sec-title">
+    <div class="sec-icon" style="background:#f3e8ff">❓</div>
+    <div>
+      <span class="sec-label">Mục 11</span>
+      <h2>FAQ — Câu Hỏi Thường Gặp</h2>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Hệ thống có tự động đặt lệnh không?</div>
+    <div class="faq-a">
+      <strong>Không.</strong> Đây là hệ thống hỗ trợ quyết định (decision support), không phải bot auto-trading.
+      Mọi lệnh đều cần trader bấm tay trên sàn giao dịch. Hệ thống chỉ phân tích và gợi ý.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">P_alpha 0.70 có nghĩa là win rate 70% không?</div>
+    <div class="faq-a">
+      <strong>Không hoàn toàn.</strong> P_alpha là xác suất model dự đoán đạt +5% trước SL -5% trong T+5.
+      Sau calibration, con số này gần thực tế hơn nhưng vẫn có sai số. Trong thực tế,
+      nếu bạn chỉ vào lệnh khi P_alpha ≥ 0.70, kỳ vọng win rate khoảng <strong>45–60%</strong> tuỳ market condition.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Trang 06 báo "Không có signal" — nguyên nhân?</div>
+    <div class="faq-a">
+      Có 3 nguyên nhân thường gặp:
+      <ol style="margin-top:8px">
+        <li><strong>Regime BEAR</strong>: Tất cả signal bị tắt. Xem banner đỏ ở trên cùng.</li>
+        <li><strong>Ngưỡng P_min quá cao</strong>: Thử hạ slider "Ngưỡng xác suất" xuống 0.60.</li>
+        <li><strong>RSI filter</strong>: Toàn bộ VN30 đang overbought (RSI &gt; 80). Đợi correction.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Drift Alert đỏ — phải làm gì?</div>
+    <div class="faq-a">
+      <ol style="margin-top:8px">
+        <li>Mở trang <strong>09 Self-Learning</strong> → bấm <strong>"🔄 Re-fit ngay"</strong> (cần ≥ 10 outcomes).</li>
+        <li>Nếu precision vẫn thấp sau re-fit → giảm size xuống 50%.</li>
+        <li>Nếu drift kéo dài &gt; 5 ngày → chạy retrain: <code>py -3.12 scripts/train_pipeline.py --retrain</code></li>
+        <li>Không vào lệnh real cho đến khi precision hồi phục về ≥ 35%.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Khi nào cần chạy retrain model?</div>
+    <div class="faq-a">
+      Hệ thống nhắc tự động khi <code>model_age_days ≥ 14</code> tại trang 11.
+      Cũng nên retrain khi: <strong>(a)</strong> Drift Alert kéo dài, <strong>(b)</strong> thị trường có thay đổi cấu trúc lớn
+      (ví dụ: VNIndex crash &gt;15%, thay đổi chính sách T+), <strong>(c)</strong> có thêm nhiều phiên D0.2 mới (sau 30+ phiên).
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Tôi có thể thêm cổ phiếu ngoài VN30 không?</div>
+    <div class="faq-a">
+      Về kỹ thuật có thể, nhưng model được train và tối ưu cho <strong>VN30</strong>.
+      Các mã mid-cap/small-cap có thanh khoản thấp hơn và cấu trúc giá khác —
+      feature importance sẽ kém ý nghĩa hơn. Hiện tại không khuyến nghị mở rộng universe.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">API VNStock bị giới hạn rate — cần làm gì?</div>
+    <div class="faq-a">
+      Free tier giới hạn ~17 req/phút. Hệ thống tự sleep giữa các request.
+      Để tăng tốc, thêm API key vào file <code>.env</code>:
+      <br><code>VCI_API_KEY=your_key_here</code>
+      <br>Nếu không có key, chạy predict lúc <strong>sáng sớm (7–8h)</strong> khi ít tải hơn.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Go-Live Validator báo fail — lệnh real có thể vào không?</div>
+    <div class="faq-a">
+      <strong>Phụ thuộc vào loại fail:</strong>
+      <ul style="margin-top:8px">
+        <li><strong>Hard Fail</strong> (đỏ): Không. Phải fix trước. Ví dụ: không có model file, drift alert.</li>
+        <li><strong>Warning</strong> (vàng): Có thể vào nhưng giảm size, thận trọng hơn.
+          Ví dụ: E6 chưa fit, D0.2 &lt; 30 phiên.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">E6 Rolling Calibrator khác gì với batch calibration?</div>
+    <div class="faq-a">
+      <strong>Batch calibration (M2)</strong>: chạy một lần khi train model, dùng dữ liệu historical.
+      <strong>E6 Rolling (weekly)</strong>: re-fit mỗi tuần dựa trên outcomes THỰC TẾ gần đây (T+5).
+      E6 giúp model thích nghi với điều kiện thị trường hiện tại mà không cần retrain toàn bộ LightGBM.
+      Đây là "Hybrid Self-Learning" — giữ sức mạnh của batch model + linh hoạt của online learning.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<div class="footer">
+  <p>Alpha Signal System · User Guide v10.0 · Tháng 5/2026</p>
+  <p style="margin-top:4px">Xem thêm: <a href="alpha_signal_roadmap.html">Roadmap &amp; Kiến Trúc</a></p>
+</div>
+
+</div><!-- /page -->
+</body>
+</html>

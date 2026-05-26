@@ -1,0 +1,31 @@
+﻿,ticker,probability,confidence,rsi,volume_ratio_5d,return_1d_pct,relative_strength,pattern
+6,GVR,0.6851,low,45.8,0.16,0.87,0.84,không rõ mẫu
+0,GAS,0.6759,low,54.7,0.2,1.59,1.55,không rõ mẫu
+1,POW,0.6275,low,33.3,0.16,0,-0.03,LPS confirmed + cảnh báo đạp giá
+4,STB,0.6248,low,53.1,0.39,0.14,0.11,cảnh báo đạp giá
+8,PLX,0.6137,low,52.6,0.14,1.01,0.97,không rõ mẫu
+2,VHM,0.6085,low,55.2,0.15,-1.39,-1.42,LPS confirmed
+5,FPT,0.5469,low,52.2,0.15,0.82,0.78,không rõ mẫu
+3,VRE,0.5294,low,34.6,0.14,-0.61,-0.64,cảnh báo đạp giá
+14,MWG,0.5288,low,23,0.17,0,-0.03,cảnh báo đạp giá
+15,BVH,0.5045,low,52.3,0.29,-0.86,-0.89,smart money kéo
+19,VIC,0.4938,low,44.4,0.15,-1.92,-1.95,không rõ mẫu
+9,BCM,0.4003,low,48.7,0.13,0.38,0.34,không rõ mẫu
+23,SAB,0.3704,low,47.2,0.47,-1.15,-1.18,cảnh báo đạp giá
+7,BID,0.3577,low,62.3,0.26,0.93,0.9,LPS confirmed
+18,HPG,0.1483,low,39.6,0.27,0.21,0.17,cảnh báo đạp giá
+20,SSI,0.1473,low,36.9,0.28,0.73,0.69,Spring detected
+22,MSN,0.1239,low,44.1,0.16,-0.52,-0.55,Spring chất lượng cao
+17,TCB,0.1145,low,39.5,0.13,0.31,0.27,Spring detected
+27,CTG,0.1067,low,44.1,0.27,0.57,0.54,Spring chất lượng cao + cảnh báo đạp giá
+26,VNM,0.0939,low,34.3,0.09,0.51,0.47,không rõ mẫu
+25,MBB,0.0738,low,30,0.26,1.01,0.97,cảnh báo đạp giá
+24,VJC,0.0735,low,36.5,0.45,-0.86,-0.9,Spring chất lượng cao
+13,VPB,0.0724,low,44.6,0.14,0.37,0.34,Spring chất lượng cao + smart money kéo
+21,VCB,0.068,low,67.8,0.12,-0.16,-0.19,smart money kéo
+29,SHB,0.0642,low,34.8,0.41,0.36,0.33,không rõ mẫu
+28,HDB,0.0574,low,48,0.32,0,-0.03,Spring detected + cảnh báo đạp giá
+11,VIB,0.0397,low,48.6,0.8,1.57,1.54,Spring detected
+16,TPB,0.0266,low,35.9,0.47,0.64,0.61,Spring detected + smart money kéo
+10,ACB,0.0061,low,65.8,1.11,2.97,2.94,Spring chất lượng cao + smart money kéo
+12,SSB,0.0053,low,64.5,0.42,0.29,0.26,Spring chất lượng cao + smart money kéo

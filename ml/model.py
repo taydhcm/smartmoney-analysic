@@ -42,7 +42,7 @@ CALIBRATOR_PATH = _ARTIFACTS_DIR / "alpha_calibrator.pkl"  # Isotonic calibrator
 # ── Model versioning ────────────────────────────────────────────────────────────
 # Tăng khi thay đổi: label definition, feature list, hoặc training schema.
 # Artifact có version khác → bị reject tự động trong load_model().
-MODEL_LABEL_VERSION = "v5_calibrated"  # v5.0: +3 Wyckoff-derived features (35 total) + isotonic calibration
+MODEL_LABEL_VERSION = "v6_calibrated"  # v6.0: +3 Proprietary flow features (38 total) + SSI iBoard
 
 
 # ── Model factory ──────────────────────────────────────────────────────────────

@@ -7,13 +7,16 @@ DB file: data/db/snapshots.db  (auto-created)
 Tables
 ------
 snapshots
-    session_date  TEXT  YYYY-MM-DD
-    ticker        TEXT
-    foreign_buy   REAL  -- volume
-    foreign_sell  REAL  -- volume
-    foreign_net   REAL  -- buy - sell (positive = net buying)
-    total_volume  REAL  -- OHLCV total volume (denominator for %)
-    close         REAL
+    session_date       TEXT  YYYY-MM-DD
+    ticker             TEXT
+    foreign_buy        REAL  -- volume
+    foreign_sell       REAL  -- volume
+    foreign_net        REAL  -- buy - sell (positive = net buying)
+    total_volume       REAL  -- OHLCV total volume (denominator for %)
+    close              REAL
+    proprietary_buy    REAL  -- Sprint 12: tự doanh mua (default 0)
+    proprietary_sell   REAL  -- Sprint 12: tự doanh bán (default 0)
+    proprietary_net    REAL  -- Sprint 12: tự doanh net = buy - sell
     PRIMARY KEY (session_date, ticker)
 
 market_breadth
@@ -46,14 +49,17 @@ DB_PATH  = _DB_DIR / "snapshots.db"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS snapshots (
-    session_date  TEXT NOT NULL,
-    ticker        TEXT NOT NULL,
-    foreign_buy   REAL NOT NULL DEFAULT 0,
-    foreign_sell  REAL NOT NULL DEFAULT 0,
-    foreign_net   REAL NOT NULL DEFAULT 0,
-    total_volume  REAL NOT NULL DEFAULT 0,
-    close         REAL NOT NULL DEFAULT 0,
-    created_at    TEXT NOT NULL,
+    session_date       TEXT NOT NULL,
+    ticker             TEXT NOT NULL,
+    foreign_buy        REAL NOT NULL DEFAULT 0,
+    foreign_sell       REAL NOT NULL DEFAULT 0,
+    foreign_net        REAL NOT NULL DEFAULT 0,
+    total_volume       REAL NOT NULL DEFAULT 0,
+    close              REAL NOT NULL DEFAULT 0,
+    proprietary_buy    REAL NOT NULL DEFAULT 0,
+    proprietary_sell   REAL NOT NULL DEFAULT 0,
+    proprietary_net    REAL NOT NULL DEFAULT 0,
+    created_at         TEXT NOT NULL,
     PRIMARY KEY (session_date, ticker)
 );
 
@@ -81,9 +87,27 @@ def ensure_db() -> Path:
     _DB_DIR.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(str(DB_PATH)) as con:
         con.executescript(_DDL)
+        # Sprint 12: migrate existing DB — add proprietary columns nếu chưa có
+        _migrate_add_proprietary_columns(con)
         con.commit()
     log.debug("DB ready: %s", DB_PATH)
     return DB_PATH
+
+
+def _migrate_add_proprietary_columns(con: sqlite3.Connection) -> None:
+    """Idempotent migration: thêm proprietary columns nếu chưa có (SQLite không có IF NOT EXISTS cho ALTER TABLE)."""
+    existing = {row[1] for row in con.execute("PRAGMA table_info(snapshots)")}
+    for col, typedef in [
+        ("proprietary_buy",  "REAL NOT NULL DEFAULT 0"),
+        ("proprietary_sell", "REAL NOT NULL DEFAULT 0"),
+        ("proprietary_net",  "REAL NOT NULL DEFAULT 0"),
+    ]:
+        if col not in existing:
+            try:
+                con.execute(f"ALTER TABLE snapshots ADD COLUMN {col} {typedef}")
+                log.info("DB migration: added column snapshots.%s", col)
+            except Exception as exc:
+                log.warning("DB migration %s: %s", col, exc)
 
 
 @contextmanager
@@ -140,14 +164,17 @@ def load_snapshots(ticker: str, last_n: int = 20) -> "pd.DataFrame":  # type: ig
     """
     Load N phien gan nhat cho 1 ticker.
     Columns: session_date, ticker, foreign_buy, foreign_sell, foreign_net,
-             total_volume, close.
+             total_volume, close, proprietary_buy, proprietary_sell, proprietary_net.
     """
     import pandas as pd
     with get_connection() as con:
         rows = con.execute(
             """
             SELECT session_date, ticker, foreign_buy, foreign_sell,
-                   foreign_net, total_volume, close
+                   foreign_net, total_volume, close,
+                   COALESCE(proprietary_buy,  0) AS proprietary_buy,
+                   COALESCE(proprietary_sell, 0) AS proprietary_sell,
+                   COALESCE(proprietary_net,  0) AS proprietary_net
             FROM   snapshots
             WHERE  ticker = ?
             ORDER  BY session_date DESC
@@ -159,6 +186,7 @@ def load_snapshots(ticker: str, last_n: int = 20) -> "pd.DataFrame":  # type: ig
         return pd.DataFrame(columns=[
             "session_date", "ticker", "foreign_buy", "foreign_sell",
             "foreign_net", "total_volume", "close",
+            "proprietary_buy", "proprietary_sell", "proprietary_net",
         ])
     df = pd.DataFrame([dict(r) for r in rows])
     df["session_date"] = pd.to_datetime(df["session_date"])
@@ -173,9 +201,13 @@ def upsert_snapshot(
     foreign_net: float,
     total_volume: float,
     close: float,
+    proprietary_buy: float = 0.0,
+    proprietary_sell: float = 0.0,
+    proprietary_net: float = 0.0,
 ) -> bool:
     """
     Ghi 1 row vao snapshots. Idempotent (INSERT OR REPLACE).
+    Sprint 12: thêm proprietary_buy/sell/net (default 0 cho backward compat).
     Returns True neu ghi moi, False neu ban ghi da ton tai va ghi de.
     """
     now = datetime.now().isoformat()
@@ -184,11 +216,14 @@ def upsert_snapshot(
             """
             INSERT OR REPLACE INTO snapshots
                 (session_date, ticker, foreign_buy, foreign_sell,
-                 foreign_net, total_volume, close, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 foreign_net, total_volume, close,
+                 proprietary_buy, proprietary_sell, proprietary_net,
+                 created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (session_date, ticker.upper(), foreign_buy, foreign_sell,
-             foreign_net, total_volume, close, now),
+             foreign_net, total_volume, close,
+             proprietary_buy, proprietary_sell, proprietary_net, now),
         )
     return True
 

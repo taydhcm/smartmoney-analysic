@@ -20,6 +20,7 @@ log = get_logger(__name__)
 # v3.0: Thêm 3 smart money features từ S4 D0.2 SQLite logger (foreign_net_pct, foreign_trend, smart_money_score)
 # v5.0: Thêm 5 Wyckoff VSA features từ S1 engine v2.0 (Sprint 5) — accumulation_score nay dùng wyckoff_score
 # v6.0: Thêm 3 Wyckoff derived features (Sprint 6) — wyckoff_phase_score, phase_duration_norm, vol_profile_score (35 total)
+# v7.0: Thêm 3 Proprietary flow features (Sprint 12) — proprietary_net_pct, prop_trend, combined_institutional_score (38 total)
 FEATURE_COLS: list[str] = [
     # Return
     "return_1d",
@@ -69,6 +70,11 @@ FEATURE_COLS: list[str] = [
     "wyckoff_phase_score",  # phase encode: phase_d=1.0, phase_c=0.75, phase_b=0.55, none=0.30, dist=0.0
     "phase_duration_norm",  # phase_duration / 30.0, clipped [0, 1]
     "vol_profile_score",    # volume profile: expanding=1.0, climax=0.8, neutral=0.5, contracting=0.2
+    # Sprint 12: Proprietary flow features từ SSI iBoard (v7.0) — 3 thêm để đạt 38 features
+    # Giá trị = 0.0 khi SSI không khả dụng (model vẫn hoạt động bình thường)
+    "proprietary_net_pct",            # TB 5 phiên: prop net / total flow [-1, +1]
+    "prop_trend",                     # Slope of prop net pct [-1, +1]
+    "combined_institutional_score",   # 0.50*foreign + 0.35*prop_5d + 0.15*prop_trend [-1, +1]
 ]
 
 
@@ -332,6 +338,12 @@ def compute_stock_features(
     out["foreign_net_pct"]   = float(_sm.get("foreign_net_pct",   0.0))
     out["foreign_trend"]     = float(_sm.get("foreign_trend",     0.0))
     out["smart_money_score"] = float(_sm.get("smart_money_score", 0.0))
+
+    # ── Sprint 12: Proprietary flow features (v7.0) ───────────────────────────
+    # Giá trị = 0.0 khi SSI không khả dụng (graceful degradation).
+    out["proprietary_net_pct"]           = float(_sm.get("proprietary_net_pct",           0.0))
+    out["prop_trend"]                    = float(_sm.get("prop_trend",                    0.0))
+    out["combined_institutional_score"]  = float(_sm.get("combined_institutional_score",  0.0))
 
     # ── M2 Label: Path-dependent (v2.0) ───────────────────────────────────────
     # y=1 khi: max(close[T+1..T+5])/close[T] >= 1.05  (đạt target +5%)

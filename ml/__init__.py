@@ -1,6 +1,6 @@
 """
 ml/__init__.py
-Alpha Signal ML package — v10.0 (Sprint 11: Scale Advisor + System Monitor)
+Alpha Signal ML package — v11.0 (Sprint 12: SSI iBoard Tự Doanh + Model v6 + 38 features)
 """
 
 from .feature_engineering import FEATURE_COLS, compute_stock_features
@@ -60,7 +60,12 @@ from .monitor import (
     check_milestone_progress,
 )
 from .backtest import BacktestResult, run_backtest
-from .smart_money import SmartMoneySignal, compute_smart_money, compute_smart_money_features
+from .smart_money import (
+    SmartMoneySignal, compute_smart_money, compute_smart_money_features,
+    # Sprint 12
+    ProprietarySignal, InstitutionalFlowSignal,
+    compute_institutional_flow, compute_institutional_flow_features,
+)
 from analytics.wyckoff import WyckoffResult, detect_wyckoff
 
 __all__ = [
@@ -114,6 +119,11 @@ __all__ = [
     "SmartMoneySignal",
     "compute_smart_money",
     "compute_smart_money_features",
+    # Sprint 12: SSI iBoard Tự Doanh
+    "ProprietarySignal",
+    "InstitutionalFlowSignal",
+    "compute_institutional_flow",
+    "compute_institutional_flow_features",
     # S1 Wyckoff VSA v2.0 (Sprint 5)
     "WyckoffResult",
     "detect_wyckoff",

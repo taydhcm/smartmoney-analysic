@@ -1,0 +1,20 @@
+Sprint 11: Scale Advisor + Daily Health Monitor (68/68 tests)
+
+New modules:
+  ml/scale_advisor.py  — ScaleDecision engine, 5 conditions (30 trades,
+                         precision≥0.35, win_rate≥0.45, drawdown≤15%, no drift),
+                         3-stage capital scale roadmap (20%→30%→40%)
+  ml/monitor.py        — HealthStatus, run_daily_health_check(), D0.2 depth check,
+                         retrain schedule checker, 30-trade milestone tracker
+
+UI:
+  pages/11_monitoring.py — Long-term Monitoring dashboard:
+                           KPI row, milestone progress bar, scale conditions table,
+                           stage roadmap, retrain reminder, D0.2 history stats
+
+Tests:
+  _test_sprint11.py  — 68/68 all passed (7 sections)
+
+Updated:
+  ml/__init__.py         — v9.0→v10.0, Sprint 11 exports added
+  docs/alpha_signal_roadmap.html — S11 hero badge + bcard marked done

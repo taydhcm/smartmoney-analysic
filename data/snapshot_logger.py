@@ -75,7 +75,31 @@ def _fetch_foreign_for_ticker(ticker: str, session_date: str) -> dict | None:
         return None
 
 
-def _fetch_ohlcv_for_ticker(ticker: str, session_date: str) -> dict | None:
+def _fetch_proprietary_for_ticker(ticker: str, session_date: str) -> dict | None:
+    """
+    Lay proprietary (tu doanh) flow hom nay cho 1 ticker tu SSI iBoard.
+    Tra ve None neu SSI khong kha dung.
+    """
+    try:
+        from analytics.ssi_iboard import fetch_investor_flow
+        df = fetch_investor_flow(ticker, limit=2)
+        if df.empty:
+            return None
+        df["date_str"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+        row = df[df["date_str"] == session_date]
+        if row.empty:
+            row = df.iloc[[-1]]
+        r = row.iloc[0]
+        return {
+            "proprietary_buy":  float(r.get("proprietary_buy",  0) or 0),
+            "proprietary_sell": float(r.get("proprietary_sell", 0) or 0),
+            "proprietary_net":  float(r.get("proprietary_net",  0) or 0),
+        }
+    except Exception as exc:
+        log.debug("_fetch_proprietary_for_ticker(%s): %s", ticker, exc)
+        return None
+
+
     """Lay close + total_volume tu OHLCV cuoi phien."""
     try:
         from data.market_data import get_ohlcv
@@ -184,7 +208,8 @@ def log_session(
                 f"Thu thap {ticker} ({i+1}/{total})...",
             )
 
-        ff   = _fetch_foreign_for_ticker(ticker, session_date)
+        ff    = _fetch_foreign_for_ticker(ticker, session_date)
+        prop  = _fetch_proprietary_for_ticker(ticker, session_date)
         ohlcv = _fetch_ohlcv_for_ticker(ticker, session_date)
 
         if ohlcv is None:
@@ -193,13 +218,16 @@ def log_session(
             continue
 
         upsert_snapshot(
-            session_date  = session_date,
-            ticker        = ticker,
-            foreign_buy   = ff["foreign_buy"]  if ff else 0.0,
-            foreign_sell  = ff["foreign_sell"] if ff else 0.0,
-            foreign_net   = ff["foreign_net"]  if ff else 0.0,
-            total_volume  = ohlcv["total_volume"],
-            close         = ohlcv["close"],
+            session_date     = session_date,
+            ticker           = ticker,
+            foreign_buy      = ff["foreign_buy"]           if ff   else 0.0,
+            foreign_sell     = ff["foreign_sell"]          if ff   else 0.0,
+            foreign_net      = ff["foreign_net"]           if ff   else 0.0,
+            total_volume     = ohlcv["total_volume"],
+            close            = ohlcv["close"],
+            proprietary_buy  = prop["proprietary_buy"]     if prop else 0.0,
+            proprietary_sell = prop["proprietary_sell"]    if prop else 0.0,
+            proprietary_net  = prop["proprietary_net"]     if prop else 0.0,
         )
         logged += 1
 
