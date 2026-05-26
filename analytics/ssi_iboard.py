@@ -60,15 +60,18 @@ _RATE_LIMIT   = int(os.getenv("SSI_RATE_LIMIT_PER_MIN", "20"))
 _TOKEN_TTL_H  = int(os.getenv("SSI_TOKEN_TTL_HOURS", "20"))
 _TIMEOUT      = 15   # seconds per request
 
-# SSI FastConnect Data API — auth endpoint đã verify (HTTP 400 với creds sai,
-# HTTP 200 với creds đúng). Confirmed từ SSI official python-fcdata SDK.
-_AUTH_URL = "https://fc-data.ssi.com.vn/api/v2/Market/AccessToken"
+# SSI iBoard TAPI — auth endpoint đã verify (HTTP 401 = endpoint tồn tại)
+# Dùng username/password, trả về JWT Bearer với TTL 8 giờ
+_AUTH_URL  = "https://iboard-tapi.ssi.com.vn/users/auth/login"
+_QUERY_URL = "https://iboard-query.ssi.com.vn"
 
-# Data endpoints — thử iboard-query với Bearer token từ fc-data auth
+# Device ID ổn định (UUID v4 dạng Windows registry-style)
+_DEVICE_ID = "87201F42-71A6-4E93-9F4A-771DA660D2EC"
+
+# Data endpoints — iboard-query.ssi.com.vn đã verify HTTP 200
 _DATA_ENDPOINTS = [
-    "https://iboard-query.ssi.com.vn/v2/stock/investor-transaction",
-    "https://iboard-query.ssi.com.vn/v2/stock/trading-statistic",
-    "https://fc-data.ssi.com.vn/api/v2/Market/DailyStockPrice",   # fallback — có auth
+    f"{_QUERY_URL}/stock/investor-transaction",
+    f"{_QUERY_URL}/stock/trading-statistic",
 ]
 
 # Known field names mapping (different API versions use different names)
@@ -152,9 +155,10 @@ _rate_limiter = _RateLimiter()
 
 # ── Auth helpers ───────────────────────────────────────────────────────────────
 
-def _get_default_headers() -> dict:
-    return {
-        "Accept":          "application/json",
+def _get_default_headers(include_device: bool = True) -> dict:
+    """Headers chung cho tất cả requests đến iboard-*.ssi.com.vn."""
+    h = {
+        "Accept":          "application/json, text/plain, */*",
         "Accept-Language": "vi-VN,vi;q=0.9,en;q=0.8",
         "Content-Type":    "application/json",
         "Origin":          "https://iboard.ssi.com.vn",
@@ -165,6 +169,11 @@ def _get_default_headers() -> dict:
             "Chrome/124.0.0.0 Safari/537.36"
         ),
     }
+    if include_device:
+        h["device-id"]    = _DEVICE_ID
+        h["x-device-name"] = "Chrome"
+        h["x-os-name"]     = "Windows"
+    return h
 
 
 def _try_login(consumer_id: str, consumer_secret: str) -> Optional[str]:
@@ -214,26 +223,83 @@ def _try_login(consumer_id: str, consumer_secret: str) -> Optional[str]:
     return None
 
 
+def _get_manual_token() -> Optional[str]:
+    """
+    Đọc Bearer token được set thủ công từ .env (SSI_BEARER_TOKEN).
+
+    Token có TTL 8h. User copy từ F12 khi đăng nhập iboard.ssi.com.vn:
+      Network → bất kỳ request → Header → Authorization: Bearer <token>
+
+    Sau đó chạy: py -3.12 scripts/set_ssi_token.py <token>
+    hoặc thêm thủ công vào .env: SSI_BEARER_TOKEN=eyJ...
+    """
+    raw_token = os.getenv("SSI_BEARER_TOKEN", "").strip()
+    if not raw_token:
+        return None
+
+    # Validate đây là JWT (3 phần ngăn cách bởi dấu .)
+    parts = raw_token.split(".")
+    if len(parts) != 3:
+        log.warning("SSI_BEARER_TOKEN không phải JWT hợp lệ")
+        return None
+
+    # Decode payload để kiểm tra expiry
+    try:
+        import base64, json as _json
+        payload_b64 = parts[1] + "==" * (4 - len(parts[1]) % 4)
+        payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
+        exp = payload.get("exp", 0)
+        if exp and exp < time.time():
+            log.warning(
+                "SSI_BEARER_TOKEN đã hết hạn (%s). "
+                "Cập nhật token: py -3.12 scripts/set_ssi_token.py <token>",
+                datetime.fromtimestamp(exp).strftime("%Y-%m-%d %H:%M"),
+            )
+            return None
+        log.debug("SSI manual token OK, expires %s",
+                  datetime.fromtimestamp(exp).strftime("%H:%M") if exp else "unknown")
+    except Exception:
+        pass  # Không thể decode — vẫn thử dùng token
+
+    return raw_token
+
+
 def get_token() -> Optional[str]:
     """
-    Lấy Bearer token, dùng cache nếu còn hiệu lực.
-    Returns None nếu chưa có credentials hoặc đăng nhập thất bại.
+    Lấy Bearer token theo thứ tự ưu tiên:
+    1. Cache (nếu còn hiệu lực)
+    2. SSI_BEARER_TOKEN trong .env (manual token từ F12 browser)
+    3. Programmatic login (hiện tại bị block bởi Cloudflare/middleware)
+
+    Returns None nếu không có token hợp lệ.
     """
     cached = _token_cache.get()
     if cached:
         return cached
 
+    # Thử manual token trước (từ SSI_BEARER_TOKEN trong .env)
+    manual = _get_manual_token()
+    if manual:
+        _token_cache.set(manual, ttl_hours=8)
+        log.info("SSI iBoard: dùng manual Bearer token từ .env")
+        return manual
+
+    # Thử programmatic login (thường bị block vì global auth middleware)
     try:
-        consumer_id, consumer_secret = get_ssi_credentials()
+        username, password = get_ssi_credentials()
     except RuntimeError as exc:
         log.warning("SSI credentials chưa được cấu hình: %s", exc)
         return None
 
-    token = _try_login(consumer_id, consumer_secret)
+    token = _try_login(username, password)
     if token:
-        _token_cache.set(token)
+        _token_cache.set(token, ttl_hours=8)
     else:
-        log.warning("SSI iBoard: đăng nhập thất bại. Tự doanh sẽ dùng giá trị 0.0")
+        log.warning(
+            "SSI iBoard: đăng nhập thất bại. "
+            "Copy Bearer token từ F12 browser và chạy: "
+            "py -3.12 scripts/set_ssi_token.py <token>"
+        )
     return token
 
 
@@ -319,7 +385,7 @@ def fetch_investor_flow(symbol: str, limit: int = 30) -> pd.DataFrame:
     if not token:
         return _empty_df()
 
-    headers = {**_get_default_headers(), "Authorization": f"Bearer {token}"}
+    headers = {**_get_default_headers(include_device=True), "Authorization": f"Bearer {token}"}
     params  = {
         "symbol": symbol.upper(),
         "type":   "stock",
