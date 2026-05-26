@@ -2,13 +2,20 @@
 analytics/ssi_iboard.py
 SSI iBoard Integration — Lấy dữ liệu giao dịch theo loại NĐT (cuối ngày).
 
-Sprint 12: Cung cấp dữ liệu Tự Doanh (proprietary) từ SSI iBoard.
+Sprint 12: Cung cấp dữ liệu Tự Doanh (proprietary) từ SSI Open API.
 
-Auth flow:
-  1. POST https://iboard-api.ssi.com.vn/api/v2/Account/Login
-     → access_token (JWT, TTL ~24h)
-  2. GET  https://iboard-query.ssi.com.vn/v2/stock/investor-transaction
-     → investor type volumes per ticker per day
+Auth flow (SSI FastConnect Data API — đã verify):
+  1. POST https://fc-data.ssi.com.vn/api/v2/Market/AccessToken
+     Body: {"consumerID": "...", "consumerSecret": "..."}
+     → {"data": {"accessToken": "...", "tokenExpire": <ms>}, "status": 200}
+
+  Lấy consumerID/consumerSecret tại:
+    https://iboard.ssi.com.vn/support/api-service/management
+
+Data strategy:
+  - SSI Open API không có investor-transaction endpoint.
+  - Thử iboard-query.ssi.com.vn với Bearer token từ fc-data auth.
+  - Fallback graceful: proprietary features = 0.0 khi SSI không khả dụng."
 
 Fallback cascade:
   SSI iBoard → empty DataFrame (graceful degradation)
@@ -53,16 +60,15 @@ _RATE_LIMIT   = int(os.getenv("SSI_RATE_LIMIT_PER_MIN", "20"))
 _TOKEN_TTL_H  = int(os.getenv("SSI_TOKEN_TTL_HOURS", "20"))
 _TIMEOUT      = 15   # seconds per request
 
-# Known SSI auth endpoints (try in order)
-_AUTH_ENDPOINTS = [
-    "https://iboard-api.ssi.com.vn/api/v2/Account/Login",
-    "https://iboard.ssi.com.vn/api/auth/v1/login",
-]
+# SSI FastConnect Data API — auth endpoint đã verify (HTTP 400 với creds sai,
+# HTTP 200 với creds đúng). Confirmed từ SSI official python-fcdata SDK.
+_AUTH_URL = "https://fc-data.ssi.com.vn/api/v2/Market/AccessToken"
 
-# Known data endpoints (try in order)
+# Data endpoints — thử iboard-query với Bearer token từ fc-data auth
 _DATA_ENDPOINTS = [
     "https://iboard-query.ssi.com.vn/v2/stock/investor-transaction",
     "https://iboard-query.ssi.com.vn/v2/stock/trading-statistic",
+    "https://fc-data.ssi.com.vn/api/v2/Market/DailyStockPrice",   # fallback — có auth
 ]
 
 # Known field names mapping (different API versions use different names)
@@ -161,62 +167,73 @@ def _get_default_headers() -> dict:
     }
 
 
-def _try_login(account: str, password: str) -> Optional[str]:
+def _try_login(consumer_id: str, consumer_secret: str) -> Optional[str]:
     """
-    Thử đăng nhập SSI iBoard qua các auth endpoint đã biết.
-    Returns access_token hoặc None nếu thất bại.
+    Xác thực SSI FastConnect Data API.
+
+    Endpoint đã verify:
+      POST https://fc-data.ssi.com.vn/api/v2/Market/AccessToken
+      Body: {"consumerID": "...", "consumerSecret": "..."}
+      Response 200: {"data": {"accessToken": "...", "tokenExpire": <ms>}, "status": 200}
+      Response 400: {"message": "This connection is invalid", "status": 400}
+
+    Lấy consumerID/consumerSecret tại:
+      https://iboard.ssi.com.vn/support/api-service/management
     """
-    payload = {"username": account, "password": password}
-    headers = _get_default_headers()
-
-    for url in _AUTH_ENDPOINTS:
-        try:
-            _rate_limiter.wait()
-            resp = requests.post(url, json=payload, headers=headers, timeout=_TIMEOUT)
-            if resp.status_code == 200:
-                data = resp.json()
-                # Thử các key phổ biến
-                for key in ("accessToken", "access_token", "token", "data"):
-                    token = data.get(key)
-                    if isinstance(token, str) and len(token) > 20:
-                        log.info("SSI auth OK via %s", url)
-                        return token
-                    if isinstance(token, dict):
-                        for subkey in ("accessToken", "access_token", "token"):
-                            t = token.get(subkey)
-                            if isinstance(t, str) and len(t) > 20:
-                                log.info("SSI auth OK via %s (nested)", url)
-                                return t
-            else:
-                log.debug("SSI auth %s → HTTP %d", url, resp.status_code)
-        except Exception as exc:
-            log.debug("SSI auth %s → %s", url, exc)
-
+    payload = {"consumerID": consumer_id, "consumerSecret": consumer_secret}
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    try:
+        _rate_limiter.wait()
+        resp = requests.post(_AUTH_URL, json=payload, headers=headers, timeout=_TIMEOUT)
+        if resp.status_code == 200:
+            body = resp.json()
+            # SSI fc-data format: {"data": {"accessToken": "...", "tokenExpire": ms}}
+            data = body.get("data") or {}
+            token = (
+                data.get("accessToken")
+                or data.get("access_token")
+                or body.get("accessToken")
+                or body.get("access_token")
+            )
+            if isinstance(token, str) and len(token) > 20:
+                ttl_ms = data.get("tokenExpire", 0)
+                ttl_h  = max(1, int(ttl_ms / 3_600_000)) if ttl_ms else _TOKEN_TTL_H
+                log.info("SSI auth OK, token TTL %dh", ttl_h)
+                return token
+            log.debug("SSI auth: token không tìm thấy trong response: %s", body)
+        else:
+            body = {}
+            try: body = resp.json()
+            except Exception: pass
+            log.debug("SSI auth HTTP %d: %s", resp.status_code, body.get("message", resp.text[:100]))
+    except Exception as exc:
+        log.debug("SSI auth lỗi: %s", exc)
     return None
 
 
 def get_token() -> Optional[str]:
     """
-    Lấy JWT token, dùng cache nếu còn hiệu lực.
-    Returns None nếu đăng nhập thất bại.
+    Lấy Bearer token, dùng cache nếu còn hiệu lực.
+    Returns None nếu chưa có credentials hoặc đăng nhập thất bại.
     """
     cached = _token_cache.get()
     if cached:
         return cached
 
     try:
-        account, password = get_ssi_credentials()
+        consumer_id, consumer_secret = get_ssi_credentials()
     except RuntimeError as exc:
         log.warning("SSI credentials chưa được cấu hình: %s", exc)
         return None
 
-    token = _try_login(account, password)
+    token = _try_login(consumer_id, consumer_secret)
     if token:
         _token_cache.set(token)
     else:
-        log.warning(
-            "SSI iBoard: đăng nhập thất bại. Tự doanh sẽ dùng giá trị 0.0"
-        )
+        log.warning("SSI iBoard: đăng nhập thất bại. Tự doanh sẽ dùng giá trị 0.0")
     return token
 
 

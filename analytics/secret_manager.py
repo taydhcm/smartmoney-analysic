@@ -65,32 +65,55 @@ def decrypt_value(ciphertext: str) -> str:
 
 def get_ssi_credentials() -> tuple[str, str]:
     """
-    Đọc và giải mã SSI credentials từ .env.
+    Đọc và giải mã SSI FastConnect API credentials từ .env.
 
     Returns
     -------
-    (account, password)  — raises RuntimeError nếu chưa cấu hình.
+    (consumerID, consumerSecret)  — raises RuntimeError nếu chưa cấu hình.
+
+    Key ưu tiên:
+      Encrypted : SSI_CONSUMER_ID_ENC / SSI_CONSUMER_SECRET_ENC
+      Plaintext : SSI_CONSUMER_ID     / SSI_CONSUMER_SECRET
+      Legacy    : SSI_ACCOUNT_ENC     / SSI_PASSWORD_ENC  (backward compat)
+
+    Lấy consumerID/consumerSecret tại:
+      https://iboard.ssi.com.vn/support/api-service/management
     """
-    # Thử encrypted trước
+    # ── Encrypted consumer keys (preferred) ───────────────────────────────────
+    enc_id  = os.getenv("SSI_CONSUMER_ID_ENC", "")
+    enc_sec = os.getenv("SSI_CONSUMER_SECRET_ENC", "")
+    if enc_id and enc_sec:
+        try:
+            return decrypt_value(enc_id), decrypt_value(enc_sec)
+        except Exception as exc:
+            log.warning("secret_manager: giải mã consumer keys thất bại (%s)", exc)
+
+    # ── Plaintext consumer keys ────────────────────────────────────────────────
+    cid = os.getenv("SSI_CONSUMER_ID", "")
+    sec = os.getenv("SSI_CONSUMER_SECRET", "")
+    if cid and sec:
+        return cid, sec
+
+    # ── Legacy encrypted account/password (backward compat) ───────────────────
     enc_acc  = os.getenv("SSI_ACCOUNT_ENC", "")
     enc_pass = os.getenv("SSI_PASSWORD_ENC", "")
-
     if enc_acc and enc_pass:
         try:
-            account  = decrypt_value(enc_acc)
-            password = decrypt_value(enc_pass)
-            return account, password
+            return decrypt_value(enc_acc), decrypt_value(enc_pass)
         except Exception as exc:
-            log.warning("secret_manager: giải mã thất bại (%s) — thử plaintext", exc)
+            log.warning("secret_manager: giải mã legacy keys thất bại (%s)", exc)
 
-    # Fallback plaintext (backward compat)
-    account  = os.getenv("SSI_ACCOUNT", "")
-    password = os.getenv("SSI_PASSWORD", "")
-    if account and password:
-        return account, password
+    # ── Legacy plaintext ───────────────────────────────────────────────────────
+    acc  = os.getenv("SSI_ACCOUNT", "")
+    pwd  = os.getenv("SSI_PASSWORD", "")
+    if acc and pwd:
+        return acc, pwd
 
     raise RuntimeError(
-        "Chưa có SSI credentials. Chạy: py -3.12 scripts/setup_ssi_credentials.py"
+        "Chưa có SSI credentials.\n"
+        "1. Đăng nhập iboard.ssi.com.vn → Support → API Service Management\n"
+        "   Lấy consumerID và consumerSecret.\n"
+        "2. Chạy: py -3.12 scripts/setup_ssi_credentials.py"
     )
 
 
