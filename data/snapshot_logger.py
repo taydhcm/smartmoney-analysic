@@ -47,22 +47,67 @@ def _is_trading_day() -> bool:
     return date.today().weekday() < 5
 
 
-def _fetch_foreign_for_ticker(ticker: str, session_date: str) -> dict | None:
+def _fetch_foreign_batch_for_session(session_date: str) -> dict[str, dict]:
     """
-    Lay foreign flow hom nay cho 1 ticker.
-    Thu tu: KBS provider -> VNDirect -> empty dict.
-    Tra ve None neu khong lay duoc gi.
+    Pre-fetch dữ liệu khối ngoại cho toàn bộ sàn từ FiinMarket trong 1-2 HTTP call.
+
+    Returns
+    -------
+    dict: {ticker_upper -> {date, foreign_buy, foreign_sell, foreign_net}}
+    Trả về dict rỗng nếu API không khả dụng (fallback về per-ticker sẽ xử lý).
     """
+    try:
+        from analytics.ssi_foreign import get_foreign_batch
+        batch_vni  = get_foreign_batch("VNINDEX")   # toàn HOSE
+        batch_vn30 = get_foreign_batch("VN30")       # bổ sung VN30 nếu thiếu
+        # Gộp: VN30 trước để VNINDEX ghi đè (VNINDEX đầy đủ hơn)
+        merged = {**batch_vn30, **batch_vni}
+        log.info(
+            "[D0.2] FiinMarket GetForeign batch: %d tickers, phiên %s",
+            len(merged), session_date,
+        )
+        return merged
+    except Exception as exc:
+        log.warning(
+            "[D0.2] FiinMarket GetForeign batch lỗi: %s — sẽ fallback về provider cũ",
+            exc,
+        )
+        return {}
+
+
+def _fetch_foreign_for_ticker(
+    ticker: str,
+    session_date: str,
+    batch: dict | None = None,
+) -> dict | None:
+    """
+    Lấy foreign flow hôm nay cho 1 ticker.
+
+    Thứ tự ưu tiên:
+      1. FiinMarket batch pre-fetched (batch param) — không tốn thêm HTTP call
+      2. Provider cũ (KBS / VNDirect) — fallback
+    Trả về None nếu không lấy được.
+    """
+    # ── Layer 1: FiinMarket batch (đã pre-fetch từ trước vòng lặp) ──────────
+    if batch is not None:
+        row = batch.get(ticker.upper())
+        if row:
+            log.debug("FiinMarket foreign OK: %s  net=%s", ticker, row.get("foreign_net"))
+            return {
+                "foreign_buy":  float(row.get("foreign_buy",  0) or 0),
+                "foreign_sell": float(row.get("foreign_sell", 0) or 0),
+                "foreign_net":  float(row.get("foreign_net",  0) or 0),
+            }
+
+    # ── Layer 2: Provider cũ (VNDirect / KBS) — fallback ────────────────────
     try:
         from data.foreign_flow import get_foreign_flow
         ff = get_foreign_flow(ticker, period="1w")
         if ff.empty:
             return None
-        # Loc dong ngay hom nay
         ff["date"] = pd.to_datetime(ff["date"]).dt.strftime("%Y-%m-%d")
         today_row = ff[ff["date"] == session_date]
         if today_row.empty:
-            # Fallback: lay dong cuoi cung
             today_row = ff.iloc[[-1]]
         row = today_row.iloc[0]
         return {
@@ -71,7 +116,7 @@ def _fetch_foreign_for_ticker(ticker: str, session_date: str) -> dict | None:
             "foreign_net":  float(row.get("net_vol",  0) or 0),
         }
     except Exception as exc:
-        log.debug("_fetch_foreign_for_ticker(%s): %s", ticker, exc)
+        log.debug("_fetch_foreign_for_ticker(%s) provider fallback: %s", ticker, exc)
         return None
 
 
@@ -241,6 +286,11 @@ def log_session(
     skipped = 0
     total   = len(tickers)
 
+    # ── Pre-fetch toàn bộ foreign data trong 1-2 HTTP calls ──────────────────
+    if progress_callback:
+        progress_callback(0.03, "Pre-fetch dữ liệu khối ngoại (FiinMarket batch)...")
+    foreign_batch = _fetch_foreign_batch_for_session(session_date)
+
     for i, ticker in enumerate(tickers):
         if progress_callback:
             progress_callback(
@@ -248,7 +298,7 @@ def log_session(
                 f"Thu thap {ticker} ({i+1}/{total})...",
             )
 
-        ff    = _fetch_foreign_for_ticker(ticker, session_date)
+        ff    = _fetch_foreign_for_ticker(ticker, session_date, batch=foreign_batch)
         prop  = _fetch_proprietary_for_ticker(ticker, session_date)
         ohlcv = _fetch_ohlcv_for_ticker(ticker, session_date)
 
