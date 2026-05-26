@@ -69,6 +69,8 @@ def main(period: str = "3m", tickers: list | None = None) -> None:
                 print("skip (features rỗng)")
                 continue
 
+            feat_df = feat_df.copy()
+            feat_df.insert(0, "ticker", ticker)
             all_frames.append(feat_df)
             labeled = feat_df["label"].dropna()
             print(f"ok ({len(feat_df)} rows, {labeled.sum()}/{len(labeled)} positive)")
@@ -87,7 +89,7 @@ def main(period: str = "3m", tickers: list | None = None) -> None:
     print(f"Failed tickers: {failed or 'none'}")
 
     print("\nBắt đầu train LightGBM v6...")
-    metrics = train_model(full_df, feature_cols=FEATURE_COLS)
+    metrics = train_model(full_df)
     print("\nKết quả train:")
     for k, v in metrics.items():
         print(f"  {k}: {v}")

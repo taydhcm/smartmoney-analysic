@@ -260,23 +260,36 @@ finally:
 
 # 2.10 fetch_investor_flow returns DataFrame with correct columns on mock success
 try:
-    mock_data = [{
-        "tradingDate": "2026-05-26",
-        "proprietaryBuyVol": 500000, "proprietarySellVol": 300000,
-        "foreignBuyVol": 1000000, "foreignSellVol": 800000,
-        "retailBuyVol": 5000000, "retailSellVol": 4900000,
-    }]
+    # FiinMarket format (new implementation)
+    mock_data = {
+        "items": [{
+            "today": {
+                "fromDate": "2026-05-26T00:00:00",
+                "toDate":   "2026-05-26T00:00:00",
+                "buy": [{"ticker": "ACB", "totalBuyTradeVolume": 500000,
+                         "totalSellTradeVolume": 300000, "totalNetBuyTradeVolume": 200000,
+                         "fromDate": "2026-05-26T00:00:00", "toDate": "2026-05-26T00:00:00"}],
+                "sell": [],
+            },
+            "oneWeek":    {"fromDate": "", "toDate": "", "buy": [], "sell": []},
+            "oneMonth":   {"fromDate": "", "toDate": "", "buy": [], "sell": []},
+            "yearToDate": {"fromDate": "", "toDate": "", "buy": [], "sell": []},
+        }]
+    }
     from analytics import ssi_iboard as sib2
-    with patch.object(sib2, "get_token", return_value="mock_token"):
-        with patch("requests.get") as mock_get:
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.json.return_value = mock_data
-            mock_get.return_value = mock_resp
-            df = sib2.fetch_investor_flow("ACB", limit=5)
-    assert not df.empty
+    # Invalidate batch cache so the mock is used
+    import analytics.ssi_iboard as _sib_mod
+    _sib_mod._batch_cache.clear()
+    with patch("requests.get") as mock_get:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = mock_data
+        mock_get.return_value = mock_resp
+        df = sib2.fetch_investor_flow("ACB", limit=5)
+    assert not df.empty, f"Expected non-empty DataFrame, got {df}"
     assert "proprietary_net" in df.columns
-    ok("fetch_investor_flow with mocked SSI response")
+    assert df["proprietary_buy"].iloc[0] == 500000
+    ok("fetch_investor_flow with mocked FiinMarket response")
 except Exception as e: fail("fetch_mock_success", e)
 
 
