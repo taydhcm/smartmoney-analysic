@@ -132,6 +132,13 @@ def _fetch_batch_from_api(com_group: str) -> dict[str, dict]:
     for arr in (today.get("buy") or [], today.get("sell") or []):
         result.update(_parse_time_range_entries(arr))
 
+    # FiinMarket trả về fromDate="0001-01-01" cho một số ticker.
+    # Thay thế bằng from_date cấp batch để date nhất quán.
+    for ticker_key in result:
+        entry_date = result[ticker_key].get("date", "")
+        if not entry_date or entry_date <= "2020-01-01":
+            result[ticker_key] = {**result[ticker_key], "date": from_date}
+
     log.info("FiinMarket %s: %d tickers loaded", com_group, len(result))
     return result
 

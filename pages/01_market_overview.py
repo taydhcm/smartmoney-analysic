@@ -87,25 +87,22 @@ def _get_data_for_mode(mode: str, exchange_: str):
             foreign_data = get_top_foreign_net(exchange_)
             prop_data    = get_top_tu_doan_net(exchange_)
 
-        # Lấy ngày từ batch (phiên gần nhất FiinMarket cập nhật)
-        data_date = "N/A"
+        # Lấy ngày khối ngoại từ batch (tất cả tickers đã có date đúng sau fix)
+        foreign_date = "N/A"
         try:
             from analytics.ssi_foreign import get_foreign_batch
             batch = get_foreign_batch("VNINDEX")
             if batch:
-                data_date = next(iter(batch.values())).get("date", "N/A")
+                for v in batch.values():
+                    d = v.get("date", "")
+                    if d and d >= "2020-01-01":
+                        foreign_date = d
+                        break
         except Exception:
             pass
 
-        # Fallback ngày từ prop batch nếu foreign rỗng
-        if data_date == "N/A":
-            try:
-                from analytics.ssi_iboard import get_proprietary_batch
-                batch_p = get_proprietary_batch("VNINDEX")
-                if batch_p:
-                    data_date = next(iter(batch_p.values())).get("date", "N/A")
-            except Exception:
-                pass
+        # Lấy ngày tự doanh (thường là phiên hoàn tất gần nhất = hôm qua)
+        prop_date = prop_data.get("date", "N/A") if isinstance(prop_data, dict) else "N/A"
 
         f_empty = foreign_data.get("buy", pd.DataFrame()).empty and \
                   foreign_data.get("sell", pd.DataFrame()).empty
@@ -113,8 +110,8 @@ def _get_data_for_mode(mode: str, exchange_: str):
                   prop_data.get("sell", pd.DataFrame()).empty
         is_empty = f_empty and p_empty
 
-        source_label = "FiinMarket SSI (real-time)"
-        return foreign_data, prop_data, data_date, source_label, is_empty
+        source_label = "FiinMarket SSI"
+        return foreign_data, prop_data, foreign_date, prop_date, source_label, is_empty
 
     else:
         # ── D0.2 SQLite — phiên trước ─────────────────────────────────────
@@ -122,7 +119,7 @@ def _get_data_for_mode(mode: str, exchange_: str):
             from data.db import get_top_movers_from_db
             movers = get_top_movers_from_db(top_n=15)
 
-        data_date    = movers.get("session_date") or "N/A"
+        session_date = movers.get("session_date") or "N/A"
         foreign_data = movers["foreign"]
         prop_data    = movers["proprietary"]
         f_empty = foreign_data.get("buy", pd.DataFrame()).empty and \
@@ -130,11 +127,11 @@ def _get_data_for_mode(mode: str, exchange_: str):
         p_empty = prop_data.get("buy", pd.DataFrame()).empty and \
                   prop_data.get("sell", pd.DataFrame()).empty
         is_empty = f_empty and p_empty
-        source_label = "D0.2 SQLite (phiên lưu trữ)"
-        return foreign_data, prop_data, data_date, source_label, is_empty
+        source_label = "D0.2 SQLite"
+        return foreign_data, prop_data, session_date, session_date, source_label, is_empty
 
 
-foreign_data, prop_data, data_date, source_label, is_empty = _get_data_for_mode(data_mode, exchange)
+foreign_data, prop_data, foreign_date, prop_date, source_label, is_empty = _get_data_for_mode(data_mode, exchange)
 
 # ── Auto-fallback warning khi FiinMarket rỗng đầu giờ ───────────────────────
 if data_mode == "live" and is_empty:
@@ -147,18 +144,23 @@ if data_mode == "live" and is_empty:
     from data.db import get_top_movers_from_db
     movers = get_top_movers_from_db(top_n=15)
     if movers["session_date"]:
-        foreign_data = movers["foreign"]
-        prop_data    = movers["proprietary"]
-        data_date    = movers["session_date"]
-        source_label = f"D0.2 SQLite (auto-fallback, phiên {data_date})"
+        foreign_data  = movers["foreign"]
+        prop_data     = movers["proprietary"]
+        foreign_date  = movers["session_date"]
+        prop_date     = movers["session_date"]
+        source_label  = f"D0.2 SQLite (auto-fallback)"
 
-# ── Date badge ────────────────────────────────────────────────────────────────
+# ── Date badges ───────────────────────────────────────────────────────────────
 st.divider()
 badge_color = "#d63031" if data_mode == "live" else "#6c5ce7"
+# Hiển thị riêng date cho foreign vs proprietary (có thể khác nhau)
+if foreign_date == prop_date:
+    date_info = f"📅 Phiên: <b>{foreign_date}</b>"
+else:
+    date_info = f"📅 Khối ngoại: <b>{foreign_date}</b> &nbsp;|&nbsp; Tự doanh: <b>{prop_date}</b>"
 st.markdown(
     f"<span style='background:{badge_color};color:white;padding:3px 10px;"
-    f"border-radius:12px;font-size:0.85em'>📅 Dữ liệu phiên: <b>{data_date}</b> "
-    f"&nbsp;|&nbsp; {source_label}</span>",
+    f"border-radius:12px;font-size:0.85em'>{date_info} &nbsp;|&nbsp; {source_label}</span>",
     unsafe_allow_html=True,
 )
 

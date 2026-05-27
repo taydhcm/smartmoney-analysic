@@ -82,7 +82,7 @@ def top_flow_table(
                 "net_val" if "net_val" in display.columns else None
             )
             if net_col:
-                display[unit_label] = (display[net_col] / divisor).round(1)
+                display[unit_label] = (display[net_col] / divisor).round(2)
                 show_cols = ["ticker", unit_label]
                 col.dataframe(display[show_cols], use_container_width=True, hide_index=True)
             else:

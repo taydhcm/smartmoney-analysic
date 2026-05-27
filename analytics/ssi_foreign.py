@@ -175,6 +175,13 @@ def _fetch_batch_from_api(com_group: str) -> dict[str, dict]:
         if ticker not in result:
             result[ticker] = data
 
+    # FiinMarket trả về fromDate="0001-01-01" cho các ticker không có giao dịch hôm nay.
+    # Thay thế bằng from_date cấp batch (today.fromDate) để date nhất quán.
+    for ticker_key in result:
+        entry_date = result[ticker_key].get("date", "")
+        if not entry_date or entry_date <= "2020-01-01":
+            result[ticker_key] = {**result[ticker_key], "date": from_date}
+
     log.info("FiinMarket GetForeign %s: %d tickers loaded", com_group, len(result))
     return result
 

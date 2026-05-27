@@ -13,6 +13,7 @@ Hiện tại: dùng provider layer — VNDirect → empty nếu không có field
 from __future__ import annotations
 
 import os
+import re
 import pandas as pd
 
 from config.constants import PERIOD_DAYS
@@ -23,6 +24,9 @@ from data.providers import get_provider
 log = get_logger(__name__)
 
 _provider = get_provider(os.getenv("FLOW_PROVIDER", "auto"))
+
+# Regex: chỉ giữ cổ phiếu cơ sở (2-5 chữ cái), loại bỏ chứng quyền, phái sinh, ETF có số
+_EQUITY_RE = re.compile(r"^[A-Z]{2,5}$")
 
 
 @ttl_cache()
@@ -49,22 +53,34 @@ def get_tu_doan_flow(ticker: str, period: str = "1w") -> pd.DataFrame:
 
 
 @ttl_cache()
-def get_top_tu_doan_net(exchange: str = "HOSE", top_n: int = 15) -> dict[str, pd.DataFrame]:
+def get_top_tu_doan_net(exchange: str = "HOSE", top_n: int = 15) -> dict:
     """
     Top mã tự doanh mua ròng / bán ròng nhiều nhất.
 
     Nguồn: FiinMarket GetProprietaryV2 (SSI iBoard), batch toàn sàn.
     Đơn vị: khối lượng cổ phiếu (shares volume).
+    Chỉ bao gồm cổ phiếu cơ sở (loại bỏ chứng quyền, phái sinh).
 
     Returns:
-        {"buy": DataFrame, "sell": DataFrame}
+        {"buy": DataFrame, "sell": DataFrame, "date": str}
         Mỗi DataFrame có cột: ticker, net_vol, date
     """
+    empty = {"buy": pd.DataFrame(columns=["ticker", "net_vol"]),
+             "sell": pd.DataFrame(columns=["ticker", "net_vol"]),
+             "date": "N/A"}
     try:
         from analytics.ssi_iboard import get_proprietary_batch
         com_group = "VNINDEX" if exchange in ("HOSE", "VNINDEX") else exchange
         batch = get_proprietary_batch(com_group)
         if batch:
+            # Lấy ngày dữ liệu từ ticker đầu tiên hợp lệ
+            batch_date = "N/A"
+            for d in batch.values():
+                d_date = d.get("date", "")
+                if d_date and d_date >= "2020-01-01":
+                    batch_date = d_date
+                    break
+
             rows = [
                 {
                     "ticker":  t,
@@ -72,18 +88,18 @@ def get_top_tu_doan_net(exchange: str = "HOSE", top_n: int = 15) -> dict[str, pd
                     "date":    d.get("date", ""),
                 }
                 for t, d in batch.items()
-                if d.get("proprietary_net", 0) != 0
+                # Chỉ giữ cổ phiếu cơ sở (không có chữ số trong ticker)
+                if _EQUITY_RE.match(t) and d.get("proprietary_net", 0) != 0
             ]
             if rows:
                 all_df  = pd.DataFrame(rows)
                 buy_df  = all_df[all_df["net_vol"] > 0].nlargest(top_n, "net_vol").reset_index(drop=True)
                 sell_df = all_df[all_df["net_vol"] < 0].nsmallest(top_n, "net_vol").reset_index(drop=True)
-                return {"buy": buy_df, "sell": sell_df}
+                return {"buy": buy_df, "sell": sell_df, "date": batch_date}
     except Exception as exc:
         log.warning("get_top_tu_doan_net FiinMarket lỗi: %s", exc)
 
-    empty = pd.DataFrame(columns=["ticker", "net_vol", "date"])
-    return {"buy": empty, "sell": empty}
+    return empty
 
 
 def summarize_tu_doan(ticker: str, period: str = "1w") -> str:

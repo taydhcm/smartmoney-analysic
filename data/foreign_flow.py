@@ -115,7 +115,11 @@ def get_foreign_flow(ticker: str, period: str = "1w") -> pd.DataFrame:
     if not df_sql.empty and not df_fiin.empty:
         # Gộp: tránh trùng ngày
         combined = pd.concat([df_sql, df_fiin], ignore_index=True)
-        combined["date"] = pd.to_datetime(combined["date"]).dt.strftime("%Y-%m-%d")
+        # errors='coerce' để tránh OutOfBoundsDatetime khi date="0001-01-01"
+        combined["date"] = pd.to_datetime(combined["date"], errors="coerce")
+        combined = combined.dropna(subset=["date"])
+        combined = combined[combined["date"] >= pd.Timestamp("2000-01-01")]
+        combined["date"] = combined["date"].dt.strftime("%Y-%m-%d")
         combined = combined.drop_duplicates(subset=["date"], keep="last")
         return combined.sort_values("date").reset_index(drop=True)
     if not df_fiin.empty:
