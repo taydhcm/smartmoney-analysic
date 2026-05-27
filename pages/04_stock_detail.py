@@ -47,7 +47,15 @@ with st.spinner(f"Đang tải dữ liệu {ticker}..."):
 
 # ── Smart Money Score ─────────────────────────────────────────────────────────
 f_net    = ff_df["net_val"].sum()   if (not ff_df.empty and "net_val" in ff_df.columns) else 0
-p_net    = td_df["net_val"].sum()   if (not td_df.empty and "net_val" in td_df.columns) else 0
+# p_net: dùng net_val nếu có (VNDirect); khi SSI iBoard fallback (net_val=0, net_vol≠0)
+# thì quy đổi net_vol × close_price từ OHLCV để có giá trị tỷ VND xấp xỉ
+if not td_df.empty and "net_val" in td_df.columns and td_df["net_val"].sum() != 0:
+    p_net = td_df["net_val"].sum()
+elif not td_df.empty and "net_vol" in td_df.columns:
+    close_px = float(ohlcv["close"].iloc[-1]) if (not ohlcv.empty and "close" in ohlcv.columns) else 0
+    p_net = td_df["net_vol"].sum() * close_px
+else:
+    p_net = 0
 avg_val  = ohlcv["volume"].mean() * ohlcv["close"].mean() if not ohlcv.empty else 1e9
 rv_mean  = ohlcv["rel_vol"].mean()  if (not ohlcv.empty and "rel_vol" in ohlcv.columns) else 1.0
 mfi_last = float(ohlcv["mfi"].iloc[-1]) if (not ohlcv.empty and "mfi" in ohlcv.columns) else 50.0
@@ -76,7 +84,11 @@ with col_gauge:
 with col_metrics:
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Khối ngoại net", f"{f_net/1e9:.1f} tỷ")
-    m2.metric("Tự doanh net",   f"{p_net/1e9:.1f} tỷ")
+    # Ghi chú nguồn tự doanh: SSI iBoard (xấp xỉ) hoặc VNDirect (chính xác)
+    _td_src = ""
+    if not td_df.empty and "net_val" in td_df.columns and td_df["net_val"].sum() == 0 and td_df["net_vol"].sum() != 0:
+        _td_src = " ~"  # ký hiệu xấp xỉ khi dùng SSI fallback
+    m2.metric("Tự doanh net" + _td_src, f"{p_net/1e9:.1f} tỷ")
     m3.metric("MFI",            f"{mfi_last:.0f}")
     m4.metric("RelVol TB",      f"{rv_mean:.2f}x")
 
