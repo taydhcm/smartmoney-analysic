@@ -241,6 +241,11 @@ def predict_today(
                 "rsi":                round(rsi, 1),
                 "volume_ratio_5d":    round(vol_ratio, 2),
                 "relative_strength":  round(rel_str * 100, 2),   # in %
+                "vn_score":           _vn_practical_score(
+                    _describe_pattern(acc_score, div_score, pp_score,
+                                      spring_q, lps_det, prop_net),
+                    vol_ratio, rel_str * 100, rsi,
+                ),
                 "return_1d_pct":      round(ret_1d * 100, 2),    # in %
                 "accumulation_score": round(acc_score, 3),
                 "divergence_score":   round(div_score, 3),
@@ -343,8 +348,8 @@ def predict_today(
     if progress_callback:
         progress_callback(1.0, "Hoàn tất dự đoán.")
 
-    # Sort theo composite_score (D3.2): 60% P_alpha + 40% RS rank
-    filtered.sort(key=lambda x: x["composite_score"], reverse=True)
+    # Sort theo VN practical score: pattern > volume > RS > RSI zone > probability
+    filtered.sort(key=lambda x: x["vn_score"], reverse=True)
 
     log.info(
         "Prediction: %d tickers → %d raw → %d picks "
@@ -377,7 +382,7 @@ def predict_all(
     )
     if not all_results:
         return pd.DataFrame()
-    return pd.DataFrame(all_results).sort_values("probability", ascending=False)
+    return pd.DataFrame(all_results).sort_values("vn_score", ascending=False)
 
 
 def get_current_regime(period: str = "3m") -> RegimeInfo:
@@ -411,6 +416,79 @@ def get_feature_importance() -> dict[str, float]:
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _vn_practical_score(
+    pattern: str,
+    volume_ratio: float,
+    relative_strength_pct: float,
+    rsi: float,
+) -> float:
+    """
+    Điểm ưu tiên thực chiến VN market (0–1):
+      40% pattern chất lượng (Spring > LPS > smart money)
+      25% volume ratio (≥2.5× = max)
+      20% relative strength so VN-Index
+      15% RSI entry zone (30–50 = lý tưởng)
+    """
+    p = pattern.lower()
+
+    spring_hq    = "spring chất lượng cao" in p
+    spring_ok    = "spring detected" in p
+    lps_ok       = "lps confirmed" in p
+    acc_strong   = "tích lũy wyckoff mạnh" in p
+    smart_money  = "smart money kéo" in p
+    tu_doan_buy  = "tự doanh mua ròng" in p
+    dap_gia      = "cảnh báo đạp giá" in p
+
+    # Pattern score
+    if (spring_hq or spring_ok) and lps_ok:
+        p_score = 1.00   # Best: Spring + LPS xác nhận tích lũy
+    elif spring_hq and (acc_strong or smart_money or tu_doan_buy):
+        p_score = 0.90
+    elif spring_hq:
+        p_score = 0.80
+    elif spring_ok and (lps_ok or acc_strong or smart_money):
+        p_score = 0.75
+    elif spring_ok:
+        p_score = 0.65
+    elif lps_ok and (acc_strong or smart_money or tu_doan_buy):
+        p_score = 0.65
+    elif lps_ok:
+        p_score = 0.60
+    elif acc_strong or (smart_money and tu_doan_buy):
+        p_score = 0.55
+    elif smart_money:
+        p_score = 0.50
+    elif dap_gia:
+        p_score = 0.10   # Phân phối / đạp giá — ưu tiên thấp nhất
+    else:
+        p_score = 0.30   # không rõ mẫu
+
+    # Volume score: 0 at ≤0× → 1 at ≥2.5×
+    v_score = min(float(volume_ratio) / 2.5, 1.0)
+
+    # RS score: -5% → 0, 0% → 0.5, +5% → 1.0
+    r_score = max(0.0, min(1.0, (float(relative_strength_pct) + 5.0) / 10.0))
+
+    # RSI entry zone
+    rsi_f = float(rsi)
+    if 30.0 <= rsi_f <= 50.0:
+        rsi_score = 1.00   # Lý tưởng: vừa hồi phục khỏi vùng quá bán
+    elif 50.0 < rsi_f <= 65.0:
+        rsi_score = 0.70   # Vùng trung tính
+    elif rsi_f < 30.0:
+        rsi_score = 0.50   # Quá bán, chưa xác nhận đảo chiều
+    else:                  # > 65 → overbought
+        rsi_score = max(0.10, 1.0 - (rsi_f - 65.0) / 40.0)
+
+    return round(
+        0.40 * p_score +
+        0.25 * v_score +
+        0.20 * r_score +
+        0.15 * rsi_score,
+        4,
+    )
+
 
 def _describe_pattern(acc: float, div: float, pp: float,
                       spring_q: float = 0.0, lps: float = 0.0,

@@ -884,20 +884,20 @@ if do_predict or "alpha_picks" in st.session_state:
     # ─────────────────────────────────────────────────────────────────────────
     if show_all and all_df is not None and not all_df.empty:
         st.divider()
-        st.header("🗺️ P_alpha Toàn VN30")
+        st.header("🗺️ P_alpha Toàn VN30  *(xếp theo VN Score: pattern › volume › RS › RSI)*")
 
         fig_heat = px.bar(
-            all_df.sort_values("probability", ascending=True),
+            all_df.sort_values("vn_score", ascending=True),
             x="probability",
             y="ticker",
             orientation="h",
-            color="probability",
+            color="vn_score",
             color_continuous_scale=["#cc0000", "#ff8800", "#ffdd00", "#00cc66"],
-            range_color=[0.3, 0.9],
-            text=all_df.sort_values("probability", ascending=True)["probability"].apply(
+            range_color=[0.2, 0.8],
+            text=all_df.sort_values("vn_score", ascending=True)["probability"].apply(
                 lambda x: f"{x:.0%}"
             ),
-            labels={"probability": "P_alpha", "ticker": ""},
+            labels={"probability": "P_alpha", "ticker": "", "vn_score": "VN Score"},
         )
         fig_heat.add_vline(
             x=saved_prob, line_dash="dot", line_color="white",
@@ -915,16 +915,17 @@ if do_predict or "alpha_picks" in st.session_state:
 
         # Summary table
         st.dataframe(
-            all_df[[
-                "ticker", "probability", "confidence", "rsi",
+            all_df.sort_values("vn_score", ascending=False)[[
+                "ticker", "vn_score", "probability", "confidence", "rsi",
                 "volume_ratio_5d", "return_1d_pct", "relative_strength", "pattern",
             ]].style.format({
+                "vn_score":          "{:.2f}",
                 "probability":       "{:.1%}",
                 "rsi":               "{:.0f}",
                 "volume_ratio_5d":   "{:.2f}×",
                 "return_1d_pct":     "{:+.2f}%",
                 "relative_strength": "{:+.2f}%",
-            }).background_gradient(subset=["probability"], cmap="RdYlGn"),
+            }).background_gradient(subset=["vn_score"], cmap="RdYlGn"),
             height=600,
         )
 
