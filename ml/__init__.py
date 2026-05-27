@@ -76,6 +76,14 @@ from .trade_log import (
     get_summary_stats,
     TRADE_LOG_DB,
 )
+from .drift_detector import (
+    DriftStatus,
+    get_drift_status,
+    get_rolling_series,
+    DRIFT_WINDOW,
+    DRIFT_THRESHOLD_PCT,
+    MIN_SAMPLES,
+)
 from analytics.wyckoff import WyckoffResult, detect_wyckoff
 
 __all__ = [

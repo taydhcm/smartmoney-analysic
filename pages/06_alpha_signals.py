@@ -106,6 +106,28 @@ with st.sidebar:
     else:
         st.success("⚡ **SSI API** — Không giới hạn request")
 
+    # ── Module E: Model Health Badge ──────────────────────────────────
+    st.divider()
+    st.markdown("**🤖 Trạng thái Model (Module E)**")
+    try:
+        from ml.drift_detector import get_drift_status as _get_drift_sb
+        _drift_sb = _get_drift_sb()
+        if not _drift_sb.has_enough_data:
+            st.caption(_drift_sb.badge)
+        elif _drift_sb.is_drifting:
+            st.error(_drift_sb.badge)
+        elif _drift_sb.trend == "degrading":
+            st.warning(_drift_sb.badge + f" {_drift_sb.trend_icon}")
+        else:
+            st.success(_drift_sb.badge + f" {_drift_sb.trend_icon}")
+        st.caption(
+            f"Rolling {_drift_sb.n_window} trades · "
+            f"{_drift_sb.n_resolved} resolved · "
+            f"Ngưỡng: {_drift_sb.threshold_pct:.0f}%"
+        )
+    except Exception:
+        st.caption("⚪ Model drift (chưa đủ data)")
+
     # ── D0.2 Logger Status ────────────────────────────────────────────
     st.divider()
     st.markdown("**📦 D0.2 Data Logger**")
@@ -217,6 +239,26 @@ with st.expander("🌍 Market Regime (S3)", expanded=True):
                 f"Confirmed: **{_ri['confirmed_days']}** phiên\n\n"
                 f"_{_ri['reason']}_"
             )
+# ── Module E: Drift Alert Banner ───────────────────────────────────────────
+try:
+    from ml.drift_detector import get_drift_status as _get_drift
+    _drift = _get_drift()
+    if _drift.has_enough_data and _drift.is_drifting:
+        st.error(
+            f"🚨 **DRIFT ALERT — Model có dấu hiệu suy giảm!**\n\n"
+            f"{_drift.message}\n\n"
+            f"→ Vào **Retrain Model** để cập nhật model với dữ liệu mới hơn.",
+            icon="🚨",
+        )
+    elif _drift.has_enough_data and _drift.trend == "degrading":
+        st.warning(
+            f"⚠️ **Cảnh báo xu hướng** — Win rate đang giảm dần "
+            f"({_drift.win_rate_pct:.0f}%, {_drift.trend_icon} {abs(_drift.trend_delta_pct):.0f}pp). "
+            f"Chưa đến ngưỡng alert nhưng cần theo dõi."
+        )
+except Exception:
+    pass
+
 # SECTION 1 — Model Status
 # ─────────────────────────────────────────────────────────────────────────────
 st.header("📦 Trạng Thái Model")
@@ -1212,10 +1254,13 @@ with st.expander("📊 Track Record — Out-of-Sample (Module B)", expanded=Fals
             get_summary_stats, get_weekly_win_rate, get_ticker_stats,
             get_track_record, resolve_pending_outcomes, get_pending_count,
         )
+        from ml.drift_detector import get_drift_status as _get_drift_tl, get_rolling_series
 
         # ── Header stats ──────────────────────────────────────────────────────
         _tl_stats = get_summary_stats()
-        _tl_cols = st.columns(5)
+        _drift_tl = _get_drift_tl()
+
+        _tl_cols = st.columns(6)
         _tl_cols[0].metric("Tổng tín hiệu đã log", _tl_stats["total"])
         _tl_cols[1].metric("Đã resolve (WIN/LOSS)", _tl_stats["resolved"])
         _tl_cols[2].metric("Win Rate thực tế",
@@ -1225,6 +1270,22 @@ with st.expander("📊 Track Record — Out-of-Sample (Module B)", expanded=Fals
                             f"{_tl_stats['avg_net_return_pct']:+.2f}%"
                             if _tl_stats["avg_net_return_pct"] else "N/A")
         _tl_cols[4].metric("Đang PENDING", _tl_stats["pending"])
+        _tl_cols[5].metric(
+            f"Rolling {_drift_tl.n_window} Win Rate",
+            f"{_drift_tl.win_rate_pct:.0f}%" if _drift_tl.has_enough_data else "N/A",
+            delta=f"{_drift_tl.trend_icon} {_drift_tl.trend}" if _drift_tl.has_enough_data else None,
+            delta_color="normal" if _drift_tl.trend == "improving"
+                         else ("inverse" if _drift_tl.trend == "degrading" else "off"),
+        )
+
+        # Drift status inline
+        if _drift_tl.has_enough_data:
+            if _drift_tl.is_drifting:
+                st.error(f"🚨 {_drift_tl.message}")
+            elif _drift_tl.trend == "degrading":
+                st.warning(f"⚠️ {_drift_tl.message}")
+            else:
+                st.success(f"✅ {_drift_tl.message}")
 
         st.caption(
             "📌 **Track Record thực tế** — chỉ tính signal từ `predict_today()`. "
@@ -1247,6 +1308,44 @@ with st.expander("📊 Track Record — Out-of-Sample (Module B)", expanded=Fals
                 st.rerun()
 
         st.divider()
+
+        # ── Rolling win rate timeline (Module E) ──────────────────────────────
+        _rs_df = get_rolling_series(n_total=200)
+        if not _rs_df.empty and _rs_df["cum_resolved"].max() >= 5:
+            import plotly.graph_objects as _go_rs
+            _fig_rs = _go_rs.Figure()
+            _fig_rs.add_trace(_go_rs.Scatter(
+                x=_rs_df["signal_date"],
+                y=_rs_df["cumulative_win_rate_pct"],
+                mode="lines",
+                name="Win Rate tích lũy (%)",
+                line=dict(color="#4A90D9", width=1.5, dash="dot"),
+                opacity=0.7,
+            ))
+            _fig_rs.add_trace(_go_rs.Scatter(
+                x=_rs_df["signal_date"],
+                y=_rs_df["rolling_20_win_rate_pct"],
+                mode="lines+markers",
+                name=f"Rolling {_drift_tl.n_window}-trade Win Rate (%)",
+                line=dict(color="#F5A623", width=2),
+                marker=dict(size=5),
+            ))
+            _fig_rs.add_hline(y=_drift_tl.threshold_pct,
+                               line_dash="dash", line_color="red",
+                               annotation_text=f"Drift threshold {_drift_tl.threshold_pct:.0f}%",
+                               annotation_position="bottom right")
+            _fig_rs.add_hline(y=35, line_dash="dash", line_color="green",
+                               annotation_text="Target 35%",
+                               annotation_position="top right")
+            _fig_rs.update_layout(
+                title="Rolling Win Rate Timeline (Module E — Drift Detection)",
+                xaxis_title="Ngày",
+                yaxis=dict(title="Win Rate (%)", range=[0, 100]),
+                height=350,
+                legend=dict(orientation="h"),
+                hovermode="x unified",
+            )
+            st.plotly_chart(_fig_rs, use_container_width=True)
 
         # ── Weekly win rate chart ─────────────────────────────────────────────
         _wwr_df = get_weekly_win_rate()

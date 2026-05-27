@@ -1092,6 +1092,199 @@ except Exception as e: fail("trade_log_init_exports", e)
 
 
 # ══════════════════════════════════════════════════════════════
+# Section 11: Module E — Drift Detector
+# ══════════════════════════════════════════════════════════════
+print("\n── Section 11: Module E — Drift Detector ───────────────")
+
+# 11.1 Import drift_detector
+try:
+    from ml.drift_detector import (
+        DriftStatus, get_drift_status, get_rolling_series,
+        DRIFT_WINDOW, DRIFT_THRESHOLD_PCT, MIN_SAMPLES, TRADE_LOG_DB as _DRIFT_DB,
+    )
+    ok("ml.drift_detector import thành công")
+except Exception as e: fail("drift_detector_import", e)
+
+# 11.2 Constants hợp lệ
+try:
+    from ml.drift_detector import DRIFT_WINDOW, DRIFT_THRESHOLD_PCT, MIN_SAMPLES
+    assert DRIFT_WINDOW        == 20,   f"DRIFT_WINDOW expected 20, got {DRIFT_WINDOW}"
+    assert DRIFT_THRESHOLD_PCT == 25.0, f"DRIFT_THRESHOLD_PCT expected 25.0, got {DRIFT_THRESHOLD_PCT}"
+    assert MIN_SAMPLES         == 10,   f"MIN_SAMPLES expected 10, got {MIN_SAMPLES}"
+    ok(f"Constants: window={DRIFT_WINDOW}, threshold={DRIFT_THRESHOLD_PCT}%, min={MIN_SAMPLES}")
+except Exception as e: fail("drift_constants", e)
+
+# 11.3 get_drift_status khi chưa có DB → no_data status
+try:
+    import ml.drift_detector as _dd
+    from pathlib import Path as _Pdd
+    import tempfile as _tmdd
+    _orig_dd_db      = _dd.TRADE_LOG_DB
+    _dd.TRADE_LOG_DB = _Pdd(_tmdd.mkdtemp()) / "nonexistent.db"
+
+    _ds_empty = _dd.get_drift_status()
+    assert isinstance(_ds_empty, _dd.DriftStatus), "Phải trả về DriftStatus"
+    assert not _ds_empty.has_enough_data, "Chưa có data → has_enough_data=False"
+    assert not _ds_empty.is_drifting,     "Chưa có data → is_drifting=False"
+    ok("get_drift_status không có DB → DriftStatus(has_enough_data=False)")
+except Exception as e: fail("drift_no_db", e)
+finally:
+    try:
+        _dd.TRADE_LOG_DB = _orig_dd_db
+    except Exception:
+        pass
+
+# 11.4 get_drift_status với fake data: >= MIN_SAMPLES WIN → is_drifting=False
+try:
+    import ml.drift_detector as _dd2
+    import ml.trade_log as _tl2
+    from pathlib import Path as _Pdd2
+    import tempfile as _tmdd2
+    import sqlite3 as _sq2
+    from datetime import date as _date2, timedelta as _td
+
+    _tmp_dir2 = _Pdd2(_tmdd2.mkdtemp())
+    _tmp_db2  = _tmp_dir2 / "fake_tl.db"
+
+    # Tạo DB giả với 15 WIN outcomes
+    with _sq2.connect(str(_tmp_db2)) as _conn:
+        _conn.executescript("""
+            CREATE TABLE IF NOT EXISTS alpha_signals (
+                id INTEGER PRIMARY KEY,
+                signal_date TEXT,
+                ticker TEXT,
+                p_alpha REAL,
+                p_calibrated REAL,
+                pattern TEXT,
+                confidence TEXT,
+                entry_price REAL,
+                target_pct REAL,
+                sl_pct REAL,
+                outcome TEXT,
+                exit_price REAL,
+                gross_return_pct REAL,
+                net_return_pct REAL,
+                round_trip_cost_pct REAL,
+                resolve_date TEXT,
+                recorded_at TEXT,
+                UNIQUE(signal_date, ticker)
+            );
+        """)
+        _base = _date2(2026, 1, 1)
+        for i in range(15):
+            d = (_base + _td(days=i)).isoformat()
+            _conn.execute(
+                "INSERT OR IGNORE INTO alpha_signals "
+                "(signal_date, ticker, p_alpha, p_calibrated, pattern, confidence, "
+                " entry_price, target_pct, sl_pct, outcome, resolve_date, recorded_at, "
+                " round_trip_cost_pct) "
+                "VALUES (?,?,0.72,0.68,'Spring','high',79000,0.05,0.05,'WIN',?,?,0.4)",
+                (d, f"T{i:02d}", d, d)
+            )
+        _conn.commit()
+
+    _dd2.TRADE_LOG_DB = _tmp_db2
+    _ds_win = _dd2.get_drift_status(window=20)
+    assert _ds_win.has_enough_data,  "15 WIN >= MIN_SAMPLES=10 → has_enough_data=True"
+    assert not _ds_win.is_drifting,  "Win rate 100% không drift"
+    assert _ds_win.win_rate_pct == 100.0, f"Expected 100%, got {_ds_win.win_rate_pct}"
+    ok(f"get_drift_status 15 WIN → win_rate=100%, is_drifting=False")
+except Exception as e: fail("drift_all_win", e)
+finally:
+    try:
+        _dd2.TRADE_LOG_DB = _orig_dd_db
+    except Exception:
+        pass
+
+# 11.5 get_drift_status với toàn LOSS: is_drifting=True
+try:
+    import ml.drift_detector as _dd3
+    from pathlib import Path as _Pdd3
+    import tempfile as _tmdd3
+    import sqlite3 as _sq3
+    from datetime import date as _date3, timedelta as _td3
+
+    _tmp_db3 = _Pdd3(_tmdd3.mkdtemp()) / "loss_db.db"
+    with _sq3.connect(str(_tmp_db3)) as _conn3:
+        _conn3.executescript("""
+            CREATE TABLE IF NOT EXISTS alpha_signals (
+                id INTEGER PRIMARY KEY, signal_date TEXT, ticker TEXT,
+                p_alpha REAL DEFAULT 0, p_calibrated REAL DEFAULT 0,
+                pattern TEXT DEFAULT '', confidence TEXT DEFAULT '',
+                entry_price REAL DEFAULT 0, target_pct REAL DEFAULT 0.05,
+                sl_pct REAL DEFAULT 0.05, outcome TEXT DEFAULT 'PENDING',
+                exit_price REAL, gross_return_pct REAL, net_return_pct REAL,
+                round_trip_cost_pct REAL DEFAULT 0.4,
+                resolve_date TEXT NOT NULL DEFAULT '', recorded_at TEXT NOT NULL DEFAULT '',
+                UNIQUE(signal_date, ticker)
+            );
+        """)
+        _base3 = _date3(2026, 1, 1)
+        for i in range(12):
+            d3 = (_base3 + _td3(days=i)).isoformat()
+            _conn3.execute(
+                "INSERT OR IGNORE INTO alpha_signals "
+                "(signal_date, ticker, outcome, resolve_date, recorded_at) "
+                "VALUES (?,?,'LOSS',?,?)",
+                (d3, f"L{i:02d}", d3, d3)
+            )
+        _conn3.commit()
+
+    _dd3.TRADE_LOG_DB = _tmp_db3
+    _ds_loss = _dd3.get_drift_status(window=20, threshold_pct=25.0)
+    assert _ds_loss.has_enough_data, "12 LOSS >= MIN_SAMPLES=10 → has_enough_data=True"
+    assert _ds_loss.is_drifting,     "0% win rate < 25% threshold → is_drifting=True"
+    assert _ds_loss.win_rate_pct == 0.0
+    ok("get_drift_status 12 LOSS → win_rate=0%, is_drifting=True")
+except Exception as e: fail("drift_all_loss", e)
+finally:
+    try:
+        _dd3.TRADE_LOG_DB = _orig_dd_db
+    except Exception:
+        pass
+
+# 11.6 DriftStatus.badge string format
+try:
+    from ml.drift_detector import DriftStatus
+    _ds_ok = DriftStatus(
+        is_drifting=False, win_rate_pct=38.0, n_resolved=25,
+        n_window=20, threshold_pct=25.0, has_enough_data=True,
+        trend="stable", trend_delta_pct=1.5,
+        message="OK", last_checked="2026-01-01T00:00:00",
+    )
+    assert "38" in _ds_ok.badge
+    assert "🟢" in _ds_ok.badge
+    _ds_drift = DriftStatus(
+        is_drifting=True, win_rate_pct=20.0, n_resolved=25,
+        n_window=20, threshold_pct=25.0, has_enough_data=True,
+        trend="degrading", trend_delta_pct=-10.0,
+        message="DRIFT!", last_checked="2026-01-01T00:00:00",
+    )
+    assert "🔴" in _ds_drift.badge
+    assert "DRIFT" in _ds_drift.badge
+    ok("DriftStatus.badge format đúng (🟢 OK / 🔴 DRIFT)")
+except Exception as e: fail("drift_badge_format", e)
+
+# 11.7 get_rolling_series trả về DataFrame (có thể rỗng khi chưa có data)
+try:
+    _rs = get_rolling_series(n_total=50)
+    assert hasattr(_rs, "columns"), "get_rolling_series phải trả về DataFrame"
+    ok("get_rolling_series trả về DataFrame")
+except Exception as e: fail("drift_rolling_series", e)
+
+# 11.8 ml.__init__ exports drift symbols
+try:
+    import ml as _ml2
+    assert hasattr(_ml2, "DriftStatus"),         "DriftStatus not exported"
+    assert hasattr(_ml2, "get_drift_status"),    "get_drift_status not exported"
+    assert hasattr(_ml2, "get_rolling_series"),  "get_rolling_series not exported"
+    assert hasattr(_ml2, "DRIFT_WINDOW"),        "DRIFT_WINDOW not exported"
+    assert hasattr(_ml2, "DRIFT_THRESHOLD_PCT"), "DRIFT_THRESHOLD_PCT not exported"
+    ok("ml.__init__ export đầy đủ drift_detector symbols")
+except Exception as e: fail("drift_init_exports", e)
+
+
+# ══════════════════════════════════════════════════════════════
 # Summary
 # ══════════════════════════════════════════════════════════════
 total = PASS + FAIL
