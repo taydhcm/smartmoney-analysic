@@ -49,14 +49,41 @@ def get_tu_doan_flow(ticker: str, period: str = "1w") -> pd.DataFrame:
 
 
 @ttl_cache()
-def get_top_tu_doan_net(exchange: str = "HOSE", top_n: int = 10) -> dict[str, pd.DataFrame]:
+def get_top_tu_doan_net(exchange: str = "HOSE", top_n: int = 15) -> dict[str, pd.DataFrame]:
     """
     Top mã tự doanh mua ròng / bán ròng nhiều nhất.
-    Trả về dict với DataFrame rỗng cho đến khi có nguồn dữ liệu.
 
-    TODO: Implement khi có SSI Fast Connect credentials.
+    Nguồn: FiinMarket GetProprietaryV2 (SSI iBoard), batch toàn sàn.
+    Đơn vị: khối lượng cổ phiếu (shares volume).
+
+    Returns:
+        {"buy": DataFrame, "sell": DataFrame}
+        Mỗi DataFrame có cột: ticker, net_vol, date
     """
-    return {"buy": pd.DataFrame(), "sell": pd.DataFrame()}
+    try:
+        from analytics.ssi_iboard import get_proprietary_batch
+        com_group = "VNINDEX" if exchange in ("HOSE", "VNINDEX") else exchange
+        batch = get_proprietary_batch(com_group)
+        if batch:
+            rows = [
+                {
+                    "ticker":  t,
+                    "net_vol": d["proprietary_net"],
+                    "date":    d.get("date", ""),
+                }
+                for t, d in batch.items()
+                if d.get("proprietary_net", 0) != 0
+            ]
+            if rows:
+                all_df  = pd.DataFrame(rows)
+                buy_df  = all_df[all_df["net_vol"] > 0].nlargest(top_n, "net_vol").reset_index(drop=True)
+                sell_df = all_df[all_df["net_vol"] < 0].nsmallest(top_n, "net_vol").reset_index(drop=True)
+                return {"buy": buy_df, "sell": sell_df}
+    except Exception as exc:
+        log.warning("get_top_tu_doan_net FiinMarket lỗi: %s", exc)
+
+    empty = pd.DataFrame(columns=["ticker", "net_vol", "date"])
+    return {"buy": empty, "sell": empty}
 
 
 def summarize_tu_doan(ticker: str, period: str = "1w") -> str:

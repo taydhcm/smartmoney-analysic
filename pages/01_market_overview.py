@@ -11,7 +11,7 @@ from data.sector_data import get_sector_flow_summary
 from ui.components.charts import (
     candlestick_volume_chart, sector_heatmap, market_breadth_donut
 )
-from ui.components.tables import top_foreign_net_table, sector_flow_table
+from ui.components.tables import top_flow_table, sector_flow_table
 
 st.set_page_config(page_title="Tổng Quan Thị Trường", layout="wide")
 st.title("🏛️ Tổng Quan Thị Trường")
@@ -22,6 +22,22 @@ with st.sidebar:
     period   = st.selectbox("Kỳ phân tích", ["1w", "2w", "1m", "3m"],
                             format_func=lambda x: {"1w":"1 tuần","2w":"2 tuần",
                                                    "1m":"1 tháng","3m":"3 tháng"}[x])
+    st.divider()
+    data_mode = st.radio(
+        "Nguồn dữ liệu khối ngoại / tự doanh",
+        options=["live", "db"],
+        format_func=lambda x: {
+            "live": "🔴 Phiên gần nhất (FiinMarket SSI)",
+            "db":   "📦 Phiên trước (D0.2 lưu trữ)",
+        }[x],
+        index=0,
+        help=(
+            "**FiinMarket SSI**: Real-time, cập nhật mỗi 5 phút. "
+            "Trả về phiên gần nhất đã hoàn tất (tức phiên hôm qua nếu thị trường chưa mở).\n\n"
+            "**D0.2 lưu trữ**: Lấy từ SQLite snapshots.db — luôn có data phiên trước dù "
+            "FiinMarket chưa cập nhật."
+        ),
+    )
     if st.button("🔄 Làm mới dữ liệu"):
         from utils.cache import clear_cache
         clear_cache()
@@ -53,19 +69,121 @@ with col_breadth:
     col_a.metric("Trần", breadth.get("ceiling", 0), help="Số mã kịch trần")
     col_b.metric("Sàn",  breadth.get("floor",   0), help="Số mã kịch sàn")
 
-# ── Row 2: Top Khối Ngoại ────────────────────────────────────────────────────
+# ── Helper: load data based on mode ──────────────────────────────────────────
+def _get_data_for_mode(mode: str, exchange_: str):
+    """
+    Trả về (foreign_data, prop_data, data_date, source_label, is_empty).
+
+    foreign_data / prop_data : {"buy": DataFrame, "sell": DataFrame}
+    data_date                : "YYYY-MM-DD" hoặc "N/A"
+    source_label             : mô tả nguồn dữ liệu
+    is_empty                 : True nếu cả foreign lẫn prop đều rỗng
+    """
+    import pandas as pd
+
+    if mode == "live":
+        # ── FiinMarket SSI ────────────────────────────────────────────────
+        with st.spinner("Đang tải dữ liệu FiinMarket SSI..."):
+            foreign_data = get_top_foreign_net(exchange_)
+            prop_data    = get_top_tu_doan_net(exchange_)
+
+        # Lấy ngày từ batch (phiên gần nhất FiinMarket cập nhật)
+        data_date = "N/A"
+        try:
+            from analytics.ssi_foreign import get_foreign_batch
+            batch = get_foreign_batch("VNINDEX")
+            if batch:
+                data_date = next(iter(batch.values())).get("date", "N/A")
+        except Exception:
+            pass
+
+        # Fallback ngày từ prop batch nếu foreign rỗng
+        if data_date == "N/A":
+            try:
+                from analytics.ssi_iboard import get_proprietary_batch
+                batch_p = get_proprietary_batch("VNINDEX")
+                if batch_p:
+                    data_date = next(iter(batch_p.values())).get("date", "N/A")
+            except Exception:
+                pass
+
+        f_empty = foreign_data.get("buy", pd.DataFrame()).empty and \
+                  foreign_data.get("sell", pd.DataFrame()).empty
+        p_empty = prop_data.get("buy", pd.DataFrame()).empty and \
+                  prop_data.get("sell", pd.DataFrame()).empty
+        is_empty = f_empty and p_empty
+
+        source_label = "FiinMarket SSI (real-time)"
+        return foreign_data, prop_data, data_date, source_label, is_empty
+
+    else:
+        # ── D0.2 SQLite — phiên trước ─────────────────────────────────────
+        with st.spinner("Đang tải dữ liệu D0.2 SQLite..."):
+            from data.db import get_top_movers_from_db
+            movers = get_top_movers_from_db(top_n=15)
+
+        data_date    = movers.get("session_date") or "N/A"
+        foreign_data = movers["foreign"]
+        prop_data    = movers["proprietary"]
+        f_empty = foreign_data.get("buy", pd.DataFrame()).empty and \
+                  foreign_data.get("sell", pd.DataFrame()).empty
+        p_empty = prop_data.get("buy", pd.DataFrame()).empty and \
+                  prop_data.get("sell", pd.DataFrame()).empty
+        is_empty = f_empty and p_empty
+        source_label = "D0.2 SQLite (phiên lưu trữ)"
+        return foreign_data, prop_data, data_date, source_label, is_empty
+
+
+foreign_data, prop_data, data_date, source_label, is_empty = _get_data_for_mode(data_mode, exchange)
+
+# ── Auto-fallback warning khi FiinMarket rỗng đầu giờ ───────────────────────
+if data_mode == "live" and is_empty:
+    st.warning(
+        "⏰ **FiinMarket SSI chưa có dữ liệu phiên hôm nay** (thường xảy ra trước 9:15 AM). "
+        "Hãy chuyển sang **📦 Phiên trước (D0.2 lưu trữ)** ở sidebar để xem dữ liệu phiên giao dịch gần nhất.",
+        icon="⚠️",
+    )
+    # Auto-load fallback từ SQLite
+    from data.db import get_top_movers_from_db
+    movers = get_top_movers_from_db(top_n=15)
+    if movers["session_date"]:
+        foreign_data = movers["foreign"]
+        prop_data    = movers["proprietary"]
+        data_date    = movers["session_date"]
+        source_label = f"D0.2 SQLite (auto-fallback, phiên {data_date})"
+
+# ── Date badge ────────────────────────────────────────────────────────────────
 st.divider()
-st.subheader("💰 Khối Ngoại Hôm Nay")
-with st.spinner("Đang tải dữ liệu khối ngoại..."):
-    top_foreign = get_top_foreign_net(exchange)
-top_foreign_net_table(top_foreign)
+badge_color = "#d63031" if data_mode == "live" else "#6c5ce7"
+st.markdown(
+    f"<span style='background:{badge_color};color:white;padding:3px 10px;"
+    f"border-radius:12px;font-size:0.85em'>📅 Dữ liệu phiên: <b>{data_date}</b> "
+    f"&nbsp;|&nbsp; {source_label}</span>",
+    unsafe_allow_html=True,
+)
+
+# ── Row 2: Top Khối Ngoại ────────────────────────────────────────────────────
+st.subheader("💰 Khối Ngoại")
+# live = VND value (tỷ); db = giá trị gốc DB (VND mới hoặc shares cũ — hiện tỷ cho đồng nhất)
+top_flow_table(
+    foreign_data,
+    buy_label="🟢 Khối Ngoại Mua Ròng",
+    sell_label="🔴 Khối Ngoại Bán Ròng",
+    unit_label="tỷ VND",
+    divisor=1e9,
+)
 
 # ── Row 3: Top Tự Doanh ──────────────────────────────────────────────────────
 st.divider()
-st.subheader("🏦 Tự Doanh Hôm Nay")
-with st.spinner("Đang tải dữ liệu tự doanh..."):
-    top_tu_doan = get_top_tu_doan_net(exchange)
-top_foreign_net_table(top_tu_doan)  # cùng format
+st.subheader("🏦 Tự Doanh")
+# FiinMarket prop = khối lượng CP; D0.2 prop = khối lượng CP (đều là shares)
+top_flow_table(
+    prop_data,
+    buy_label="🟢 Tự Doanh Mua Ròng",
+    sell_label="🔴 Tự Doanh Bán Ròng",
+    unit_label="nghìn CP",
+    divisor=1e3,
+)
 
 # ── Row 4: Sector Heatmap ────────────────────────────────────────────────────
 st.divider()

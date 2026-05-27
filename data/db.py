@@ -262,3 +262,85 @@ def get_meta(key: str, default: str = "") -> str:
             "SELECT value FROM logger_meta WHERE key=?", (key,)
         ).fetchone()
     return row[0] if row else default
+
+
+def get_top_movers_from_db(
+    session_date: "str | None" = None,
+    top_n: int = 15,
+) -> dict:
+    """
+    Lấy top movers (foreign + proprietary) từ D0.2 SQLite cho 1 phiên.
+
+    Nếu session_date=None → dùng phiên cuối cùng đã log.
+    Hữu ích đầu giờ sáng khi FiinMarket chưa có data phiên hiện tại.
+
+    Returns
+    -------
+    {
+        "session_date": str | None,
+        "foreign":     {"buy": DataFrame, "sell": DataFrame},
+        "proprietary": {"buy": DataFrame, "sell": DataFrame},
+    }
+    Các DataFrame có cột: ticker, net_vol
+    """
+    import pandas as pd
+
+    empty_dfs = {"buy": pd.DataFrame(columns=["ticker", "net_vol"]),
+                 "sell": pd.DataFrame(columns=["ticker", "net_vol"])}
+    empty_result: dict = {"session_date": None, "foreign": empty_dfs,
+                          "proprietary": empty_dfs}
+
+    target = session_date or get_last_session_date()
+    if not target:
+        return empty_result
+
+    with get_connection() as con:
+        rows = con.execute(
+            """
+            SELECT ticker, foreign_net, proprietary_net
+            FROM   snapshots
+            WHERE  session_date = ?
+            ORDER  BY foreign_net DESC
+            """,
+            (target,),
+        ).fetchall()
+
+    if not rows:
+        empty_result["session_date"] = target
+        return empty_result
+
+    df = pd.DataFrame([dict(r) for r in rows])
+
+    # ── Foreign (VND từ FiinMarket hoặc shares từ KBS cũ) ──────────────────
+    f_buy = (
+        df[df["foreign_net"] > 0]
+        .nlargest(top_n, "foreign_net")[["ticker", "foreign_net"]]
+        .rename(columns={"foreign_net": "net_vol"})
+        .reset_index(drop=True)
+    )
+    f_sell = (
+        df[df["foreign_net"] < 0]
+        .nsmallest(top_n, "foreign_net")[["ticker", "foreign_net"]]
+        .rename(columns={"foreign_net": "net_vol"})
+        .reset_index(drop=True)
+    )
+
+    # ── Proprietary (shares volume) ─────────────────────────────────────────
+    p_buy = (
+        df[df["proprietary_net"] > 0]
+        .nlargest(top_n, "proprietary_net")[["ticker", "proprietary_net"]]
+        .rename(columns={"proprietary_net": "net_vol"})
+        .reset_index(drop=True)
+    )
+    p_sell = (
+        df[df["proprietary_net"] < 0]
+        .nsmallest(top_n, "proprietary_net")[["ticker", "proprietary_net"]]
+        .rename(columns={"proprietary_net": "net_vol"})
+        .reset_index(drop=True)
+    )
+
+    return {
+        "session_date": target,
+        "foreign":      {"buy": f_buy,  "sell": f_sell},
+        "proprietary":  {"buy": p_buy,  "sell": p_sell},
+    }

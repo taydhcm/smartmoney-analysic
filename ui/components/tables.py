@@ -54,6 +54,46 @@ def top_foreign_net_table(result: dict) -> None:
             st.info("Không có dữ liệu")
 
 
+def top_flow_table(
+    result: dict,
+    buy_label: str = "🟢 Mua Ròng",
+    sell_label: str = "🔴 Bán Ròng",
+    unit_label: str = "tỷ VND",
+    divisor: float = 1e9,
+) -> None:
+    """
+    Bảng top mua ròng / bán ròng dùng chung cho khối ngoại và tự doanh.
+
+    Parameters
+    ----------
+    result      : {"buy": DataFrame, "sell": DataFrame} — cột bắt buộc: ticker, net_vol
+    buy_label   : Tiêu đề cột mua ròng
+    sell_label  : Tiêu đề cột bán ròng
+    unit_label  : Nhãn đơn vị hiển thị (VD: "tỷ VND", "nghìn CP")
+    divisor     : Chia net_vol để ra đơn vị hiển thị (1e9 = tỷ; 1e3 = nghìn)
+    """
+    col1, col2 = st.columns(2)
+
+    def _render(col, df: pd.DataFrame, header: str) -> None:
+        col.markdown(f"#### {header}")
+        if df is not None and not df.empty:
+            display = df.copy()
+            net_col = "net_vol" if "net_vol" in display.columns else (
+                "net_val" if "net_val" in display.columns else None
+            )
+            if net_col:
+                display[unit_label] = (display[net_col] / divisor).round(1)
+                show_cols = ["ticker", unit_label]
+                col.dataframe(display[show_cols], use_container_width=True, hide_index=True)
+            else:
+                col.dataframe(display[["ticker"]], use_container_width=True, hide_index=True)
+        else:
+            col.info("Không có dữ liệu")
+
+    _render(col1, result.get("buy"),  buy_label)
+    _render(col2, result.get("sell"), sell_label)
+
+
 def score_table(df: pd.DataFrame) -> None:
     """Bảng Smart Money Score với màu grade."""
     if df.empty:
