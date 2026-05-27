@@ -359,11 +359,7 @@ with col_run:
         disabled=not model_exists(),
     )
 with col_all:
-    show_all = st.checkbox(
-        "Hiện tất cả tickers (không lọc threshold)",
-        value=False,
-        help="Xem P_alpha của toàn bộ VN30",
-    )
+    st.caption("📊 P_alpha Toàn VN30 luôn hiện bên dưới")
 
 if not model_exists():
     if not _compatible and _artifact_exists:
@@ -400,13 +396,13 @@ if do_predict or "alpha_picks" in st.session_state:
 
         with st.spinner("Đang tính P_alpha cho VN30..."):
             try:
-                if show_all:
-                    _all_df = predict_all(
-                        tickers=VN30_TICKERS,
-                        period="3m",
-                        progress_callback=_pred_update,
-                    )
-                    st.session_state["alpha_all_df"] = _all_df
+                # Luôn lấy toàn bộ VN30 (OHLCV cache → không tốn thêm API call)
+                _all_df = predict_all(
+                    tickers=VN30_TICKERS,
+                    period="3m",
+                    progress_callback=_pred_update,
+                )
+                st.session_state["alpha_all_df"] = _all_df
 
                 _picks = predict_today(
                     tickers=VN30_TICKERS,
@@ -891,9 +887,9 @@ if do_predict or "alpha_picks" in st.session_state:
                     )
 
     # ─────────────────────────────────────────────────────────────────────────
-    # SECTION 4 — Full VN30 heatmap (nếu show_all)
+    # SECTION 4 — Full VN30 chart (luôn hiện)
     # ─────────────────────────────────────────────────────────────────────────
-    if show_all and all_df is not None and not all_df.empty:
+    if all_df is not None and not all_df.empty:
         st.divider()
         st.header("🗺️ P_alpha Toàn VN30  *(xếp theo VN Score: pattern › volume › RS › RSI)*")
 
