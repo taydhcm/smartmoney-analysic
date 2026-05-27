@@ -43,12 +43,15 @@ with st.sidebar:
     )
 
     min_prob = st.slider(
-        "Ngưỡng xác suất tối thiểu",
-        min_value=0.50,
+        "Ngưỡng P_alpha tối thiểu",
+        min_value=0.55,
         max_value=0.90,
         value=0.65,
         step=0.05,
-        help="Chỉ hiện cổ phiếu có P_alpha >= ngưỡng này",
+        help=(
+            "Sàn cứng 55% — cổ phiếu có P < 55% bị loại dù VN_score cao. "
+            "Slider này điều chỉnh ngưỡng cao hơn (regime gate có thể nâng thêm)."
+        ),
     )
 
     max_rsi = st.slider(
@@ -425,9 +428,12 @@ if do_predict or "alpha_picks" in st.session_state:
     picks      = st.session_state.get("alpha_picks", [])
     all_df     = st.session_state.get("alpha_all_df")
     saved_prob = st.session_state.get("alpha_min_prob", min_prob)
+    _TOP_N     = 5
+    top_picks  = picks[:_TOP_N]   # Top 5 theo VN_score (sắp xếp trong predict_today)
 
     # ── 4b: Portfolio Usage Tracker sidebar (Sprint 7) ────────────────────────
-    _alerts_sidebar = generate_morning_report(picks, capital=portfolio_capital_vnd)
+    # Dùng top_picks (top 5 VN_score) để sizing portfolio
+    _alerts_sidebar = generate_morning_report(top_picks, capital=portfolio_capital_vnd)
     _regime_max_pos = (_regime.max_positions if _regime is not None else 5)
     _usage = compute_portfolio_usage(_alerts_sidebar, _regime_max_pos, portfolio_capital_vnd)
     with st.sidebar:
@@ -450,15 +456,20 @@ if do_predict or "alpha_picks" in st.session_state:
     # SECTION 3 — Top Alpha Picks
     # ─────────────────────────────────────────────────────────────────────────
     st.divider()
-    st.header(f"🏆 Top Alpha Picks  (P ≥ {saved_prob:.0%})")
+    _hard_floor = max(0.55, saved_prob)
+    st.header(f"🏆 Top Alpha Picks  ·  VN_score↓ · P≥55% (sàn cứng) · P≥{saved_prob:.0%} (slider)")
+    st.caption(
+        "📌 Chiến lược chọn: **VN_score** sắp xếp (pattern › volume › RS › RSI) · "
+        "**P_alpha ≥ 55%** làm filter loại trừ · **Regime Gate** an toàn (BEAR = dừng)"
+    )
 
     if not picks:
         st.warning(
-            f"Không có cổ phiếu nào đạt ngưỡng P_alpha ≥ {saved_prob:.0%} hôm nay. "
-            "Thử giảm ngưỡng hoặc kiểm tra lại model."
+            f"Không có cổ phiếu nào vượt sàn P_alpha ≥ {_hard_floor:.0%} hôm nay. "
+            "Thử giảm slider ngưỡng hoặc kiểm tra lại model."
         )
     else:
-        st.caption(f"Tìm thấy **{len(picks)}** alpha picks hôm nay")
+        st.caption(f"🏅 **Top {_TOP_N} picks** theo VN_score (từ **{len(picks)}** mã vượt ngưỡng P≥{_hard_floor:.0%})")
 
         # ── 4a: Regime Banner (full-width, Sprint 7) ────────────────────────────
         if _regime is not None:
@@ -477,29 +488,32 @@ if do_predict or "alpha_picks" in st.session_state:
             else:
                 st.info(_banner_msg)
 
-        # ── Probability bar chart ──────────────────────────────────────────────
+        # ── VN_score bar chart — toàn bộ picks vượt ngưỡng, highlight top 5 ───────────
         picks_df = pd.DataFrame(picks)
+        _top_tickers = {p["ticker"] for p in top_picks}
 
         color_map = {"high": "#00cc66", "medium": "#ffaa00", "low": "#ff6666"}
         fig_bar = go.Figure()
         for _, row in picks_df.iterrows():
-            _comp_score = row.get("composite_score", row["probability"])
-            _rs_lbl     = (row.get("rs") or {}).get("rs_label", "Neutral")
-            _rs_icon    = {"Outperform": "🟢", "Neutral": "⚪", "Underperform": "🔴"}.get(_rs_lbl, "⚪")
+            _vn_sc   = float(row.get("vn_score", 0.0))
+            _rs_lbl  = (row.get("rs") or {}).get("rs_label", "Neutral")
+            _rs_icon = {"Outperform": "🟢", "Neutral": "⚪", "Underperform": "🔴"}.get(_rs_lbl, "⚪")
+            _is_top  = row["ticker"] in _top_tickers
             fig_bar.add_trace(
                 go.Bar(
-                    x=[_comp_score],
+                    x=[_vn_sc],
                     y=[row["ticker"]],
                     orientation="h",
-                    marker_color=color_map.get(row["confidence"], "#888"),
+                    marker_color=(color_map.get(row["confidence"], "#888")
+                                  if _is_top else "#555"),
                     name=row["confidence"],
                     showlegend=False,
-                    text=f"{row['probability']:.0%} {_rs_icon}",
+                    text=f"P={row['probability']:.0%} {_rs_icon}",
                     textposition="inside",
                     hovertemplate=(
                         f"<b>{row['ticker']}</b><br>"
+                        f"VN_score: {_vn_sc:.3f}<br>"
                         f"P_alpha: {row['probability']:.1%}<br>"
-                        f"Composite: {_comp_score:.3f}<br>"
                         f"RS: {_rs_lbl}<br>"
                         f"Pattern: {row['pattern']}<br>"
                         f"RSI: {row['rsi']:.0f} | Vol×: {row['volume_ratio_5d']:.1f}<extra></extra>"
@@ -507,12 +521,9 @@ if do_predict or "alpha_picks" in st.session_state:
                 )
             )
 
-        # Add threshold line
-        fig_bar.add_vline(x=saved_prob, line_dash="dash", line_color="white", opacity=0.5)
-
         fig_bar.update_layout(
-            title="Composite Score per ticker  (0.6×P_alpha + 0.4×RS_rank, bar label = P_alpha 🟢/⚪/🔴 RS)",
-            xaxis=dict(tickformat=".2f", range=[0, 1], title="Composite Score"),
+            title=f"VN_score — {len(picks)} mã vượt ngưỡng  ·  ▌màu = top {_TOP_N} ·  label = P_alpha 🟢/⚪/🔴 RS",
+            xaxis=dict(tickformat=".2f", range=[0, 1], title="VN_score (40%×pattern + 25%×vol + 20%×RS + 15%×RSI)"),
             yaxis=dict(categoryorder="total ascending"),
             height=max(200, len(picks) * 45 + 80),
             margin=dict(l=10, r=10, t=40, b=10),
@@ -521,7 +532,7 @@ if do_predict or "alpha_picks" in st.session_state:
         )
         st.plotly_chart(fig_bar)
 
-        # ── 4c: Morning Report Cards (D3.5, Sprint 7) ─────────────────────────
+        # ── 4c: Morning Report Cards (D3.5, Sprint 7) — top 5 theo VN_score ─────────────────────────
         if _alerts_sidebar:
             st.subheader("🌅 Morning Report — Alert Cards")
             st.caption(
@@ -585,14 +596,14 @@ if do_predict or "alpha_picks" in st.session_state:
                         st.code(_alert_text, language=None)
 
         # ── Picks cards ────────────────────────────────────────────────────────
-        st.subheader("📋 Chi Tiết Alpha Picks")
+        st.subheader(f"📋 Chi Tiết Top {_TOP_N} Picks (VN_score ↓)")
 
         conf_colors = {"high": "🟢", "medium": "🟡", "low": "🔴"}
         _RS_BADGE  = {"Outperform": "🟢 Outperform", "Neutral": "⚪ Neutral", "Underperform": "🔴 Underperform"}
         _VOL_BADGE = {"Strong": "💧💧💧 Strong", "Moderate": "💧💧 Moderate", "Weak": "💧 Weak", "Bearish": "🔻 Bearish"}
         _SM_BADGE  = {"Accumulating": "🏦 Acc", "Distributing": "🔻 Dist", "Neutral": "⚪ Neutral", "Insufficient data": "❓ —"}
 
-        for pick in picks:
+        for pick in top_picks:
             conf_icon = conf_colors.get(pick["confidence"], "⚪")
             _rs       = pick.get("rs") or {}
             _vc       = pick.get("vc") or {}

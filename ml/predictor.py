@@ -70,6 +70,10 @@ class Recommendation(str, Enum):
 DEFAULT_MIN_PROB = 0.65
 DEFAULT_MAX_RSI  = 80.0   # loại cổ phiếu overbought rõ ràng
 
+# Sàn cứng P_alpha: loại mọi cổ phiếu có P < 0.55 dù VN_score cao đến đâu.
+# Đảm bảo model phải có tín hiệu tối thiểu trước khi để Wyckoff/volume quyết định xếp hạng.
+P_ALPHA_HARD_FLOOR = 0.55
+
 # Trọng số composite score D3.2
 _W_PROB = 0.60
 _W_RS   = 0.40
@@ -98,7 +102,8 @@ def predict_today(
 
     Returns
     -------
-    list[dict] sorted by probability giảm dần.
+    list[dict] sorted by vn_score giảm dần (pattern › volume › RS › RSI).
+    Lọc loại: P < P_ALPHA_HARD_FLOOR (0.55) bị loại dù VN_score cao.
     Trả về [] khi regime = BEAR (enable_regime_gate=True).
     Mỗi dict có trường 'regime' chứa đầy đủ context từ S3.
     """
@@ -339,8 +344,13 @@ def predict_today(
             regime_max_positions=regime.max_positions,
         ).as_dict()
 
-        # Lọc probability threshold
-        if prob < effective_min_prob:
+        # Sàn cứng P_alpha (0.55) + regime-adjusted threshold
+        _effective_floor = max(P_ALPHA_HARD_FLOOR, effective_min_prob)
+        if prob < _effective_floor:
+            log.debug(
+                "[P_FILTER] %s bị loại: P=%.2f < floor=%.2f (hard=%.2f regime=%.2f)",
+                ticker, prob, _effective_floor, P_ALPHA_HARD_FLOOR, effective_min_prob,
+            )
             continue
 
         filtered.append(row)
@@ -353,9 +363,9 @@ def predict_today(
 
     log.info(
         "Prediction: %d tickers → %d raw → %d picks "
-        "(min_prob=%.2f effective=%.2f regime=%s)",
+        "(hard_floor=%.2f user_min=%.2f effective=%.2f regime=%s)",
         len(tickers), len(raw_results), len(filtered),
-        min_probability, effective_min_prob, regime.state.value,
+        P_ALPHA_HARD_FLOOR, min_probability, effective_min_prob, regime.state.value,
     )
     return filtered
 
