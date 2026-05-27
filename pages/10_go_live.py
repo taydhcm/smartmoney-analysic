@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/10_go_live.py
 Sprint 10 — Go-Live Validator UI.
 
@@ -53,7 +53,7 @@ with st.sidebar:
     max_positions = st.slider("Max positions mở", 1, 10, 5, 1)
 
     st.divider()
-    if st.button("🔄 Re-run Checks", type="primary", use_container_width=True):
+    if st.button("🔄 Re-run Checks", type="primary", width='stretch'):
         st.rerun()
 
 config = GoLiveConfig(

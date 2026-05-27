@@ -1,4 +1,4 @@
-"""
+﻿"""
 ui/components/tables.py
 Streamlit table components tái sử dụng.
 """
@@ -23,7 +23,7 @@ def foreign_flow_table(df: pd.DataFrame, title: str = "Khối Ngoại") -> None:
         if col in display.columns:
             display[col] = display[col].apply(fmt_value_vnd)
 
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    st.dataframe(display, hide_index=True)
 
 
 def top_foreign_net_table(result: dict) -> None:
@@ -36,8 +36,7 @@ def top_foreign_net_table(result: dict) -> None:
             df_buy = df_buy.copy()
             if "net_val" in df_buy.columns:
                 df_buy["net_val (tỷ)"] = (df_buy["net_val"] / 1e9).round(1)
-            st.dataframe(df_buy[["ticker", "net_val (tỷ)"]],
-                         use_container_width=True, hide_index=True)
+            st.dataframe(df_buy[["ticker", "net_val (tỷ)"]], hide_index=True)
         else:
             st.info("Không có dữ liệu")
 
@@ -48,8 +47,7 @@ def top_foreign_net_table(result: dict) -> None:
             df_sell = df_sell.copy()
             if "net_val" in df_sell.columns:
                 df_sell["net_val (tỷ)"] = (df_sell["net_val"] / 1e9).round(1)
-            st.dataframe(df_sell[["ticker", "net_val (tỷ)"]],
-                         use_container_width=True, hide_index=True)
+            st.dataframe(df_sell[["ticker", "net_val (tỷ)"]], hide_index=True)
         else:
             st.info("Không có dữ liệu")
 
@@ -84,9 +82,9 @@ def top_flow_table(
             if net_col:
                 display[unit_label] = (display[net_col] / divisor).round(2)
                 show_cols = ["ticker", unit_label]
-                col.dataframe(display[show_cols], use_container_width=True, hide_index=True)
+                col.dataframe(display[show_cols], hide_index=True)
             else:
-                col.dataframe(display[["ticker"]], use_container_width=True, hide_index=True)
+                col.dataframe(display[["ticker"]], hide_index=True)
         else:
             col.info("Không có dữ liệu")
 
@@ -102,7 +100,7 @@ def score_table(df: pd.DataFrame) -> None:
 
     display = df[["ticker", "score", "grade"]].copy()
     display["score"] = display["score"].apply(lambda x: f"{x:.1f}/100")
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    st.dataframe(display, hide_index=True)
 
 
 def sector_flow_table(df: pd.DataFrame) -> None:
@@ -118,6 +116,5 @@ def sector_flow_table(df: pd.DataFrame) -> None:
     display["Score"]           = (display["score"] * 100).round(1)
 
     st.dataframe(
-        display[["sector", "Khối ngoại (tỷ)", "Tự doanh (tỷ)", "RelVol TB", "Score"]],
-        use_container_width=True, hide_index=True,
+        display[["sector", "Khối ngoại (tỷ)", "Tự doanh (tỷ)", "RelVol TB", "Score"]], hide_index=True,
     )

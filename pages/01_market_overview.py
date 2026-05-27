@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/01_market_overview.py
 Trang Tổng Quan Thị Trường: VNIndex, breadth, top khối ngoại/tự doanh hôm nay.
 """
@@ -55,7 +55,6 @@ with col_idx:
         idx_df = enrich_with_volume_indicators(idx_df)
         st.plotly_chart(
             candlestick_volume_chart(idx_df, "VNINDEX"),
-            use_container_width=True,
         )
     else:
         st.warning("Không tải được dữ liệu VNINDEX")
@@ -64,7 +63,7 @@ with col_breadth:
     st.subheader("📊 Độ Rộng Thị Trường")
     with st.spinner("Đang tải breadth..."):
         breadth = get_market_breadth()
-    st.plotly_chart(market_breadth_donut(breadth), use_container_width=True)
+    st.plotly_chart(market_breadth_donut(breadth))
     col_a, col_b = st.columns(2)
     col_a.metric("Trần", breadth.get("ceiling", 0), help="Số mã kịch trần")
     col_b.metric("Sàn",  breadth.get("floor",   0), help="Số mã kịch sàn")
@@ -194,7 +193,7 @@ with st.spinner("Đang phân tích sector rotation (có thể mất 30-60s)...")
     sector_df = get_sector_flow_summary(period)
 
 if not sector_df.empty:
-    st.plotly_chart(sector_heatmap(sector_df), use_container_width=True)
+    st.plotly_chart(sector_heatmap(sector_df))
     sector_flow_table(sector_df)
 else:
     st.warning("Không đủ dữ liệu sector")

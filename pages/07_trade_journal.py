@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/07_trade_journal.py
 E2 Trade Logger + E3 P&L Tracker UI — Sprint 8.
 
@@ -76,7 +76,7 @@ with tab_entry:
             f_entry_date  = st.date_input("Ngày vào lệnh", value=date.today())
             f_trade_type  = st.radio("Loại lệnh", ["paper", "real"], horizontal=True)
             f_note        = st.text_area("Ghi chú", height=68)
-        submitted = st.form_submit_button("✅ Thêm lệnh", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("✅ Thêm lệnh", type="primary", width='stretch')
 
     if submitted:
         if not f_ticker:
@@ -189,7 +189,6 @@ with tab_journal:
                 "exit_price": "Giá đóng", "pnl_display": "PnL%",
                 "pnl_vnd_display": "PnL (VND)", "note": "Ghi chú"
             }),
-            use_container_width=True,
             hide_index=True,
         )
 
@@ -263,7 +262,7 @@ with tab_pnl:
                 paper_bgcolor="rgba(0,0,0,0)",
                 yaxis=dict(tickformat=",.0f"),
             )
-            st.plotly_chart(fig_eq, use_container_width=True)
+            st.plotly_chart(fig_eq)
 
             # Drawdown chart
             fig_dd = go.Figure()
@@ -281,7 +280,7 @@ with tab_pnl:
                 plot_bgcolor="rgba(0,0,0,0)",
                 paper_bgcolor="rgba(0,0,0,0)",
             )
-            st.plotly_chart(fig_dd, use_container_width=True)
+            st.plotly_chart(fig_dd)
 
         # PnL distribution
         closed_trades = [t for t in all_trades if t.get("pnl_pct") is not None]
@@ -300,4 +299,4 @@ with tab_pnl:
                 plot_bgcolor="rgba(0,0,0,0)",
                 paper_bgcolor="rgba(0,0,0,0)",
             )
-            st.plotly_chart(fig_dist, use_container_width=True)
+            st.plotly_chart(fig_dist)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/08_outcome_tracker.py
 E5 Outcome Tracker UI — Sprint 8.
 
@@ -75,7 +75,7 @@ st.markdown("---")
 col_act1, col_act2, col_act3 = st.columns([2, 2, 3])
 
 with col_act1:
-    if st.button("🔍 Kiểm tra T+5 ngay", type="primary", use_container_width=True,
+    if st.button("🔍 Kiểm tra T+5 ngay", type="primary", width='stretch',
                  help="Tự động resolve signal PENDING có T+5 <= hôm nay"):
         with st.spinner("Đang check outcome T+5..."):
             try:
@@ -93,7 +93,7 @@ with col_act1:
                 st.error(f"Lỗi check outcome: {e}")
 
 with col_act2:
-    if st.button("🌅 Log signal từ Alpha Picks", use_container_width=True,
+    if st.button("🌅 Log signal từ Alpha Picks", width='stretch',
                  help="Lấy alert cards từ session state (nếu đã chạy prediction)"):
         _picks_key = "alpha_picks"
         _alerts_key = "alpha_alerts"
@@ -174,7 +174,6 @@ else:
 
         st.dataframe(
             df[[c for c in display_cols if c in df.columns]].rename(columns=display_cols),
-            use_container_width=True,
             hide_index=True,
         )
 
@@ -238,7 +237,7 @@ else:
                     paper_bgcolor="rgba(0,0,0,0)",
                 )
                 ch1, ch2 = st.columns([1, 2])
-                ch1.plotly_chart(fig_pie, use_container_width=True)
-                ch2.plotly_chart(fig_prec, use_container_width=True)
+                ch1.plotly_chart(fig_pie)
+                ch2.plotly_chart(fig_prec)
             else:
-                st.plotly_chart(fig_pie, use_container_width=True)
+                st.plotly_chart(fig_pie)

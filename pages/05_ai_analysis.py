@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/05_ai_analysis.py
 Giao diện chat với LangGraph Multi-Agent Smart Money Detector.
 Stream real-time agent thinking → Streamlit.
@@ -75,7 +75,7 @@ if not st.session_state.messages:
     ]
     cols = st.columns(2)
     for i, suggestion in enumerate(suggestions):
-        if cols[i % 2].button(suggestion, use_container_width=True):
+        if cols[i % 2].button(suggestion):
             st.session_state.pending_query = suggestion
 
 # Handle suggested query click
@@ -189,6 +189,6 @@ Hãy phân tích dựa trên context trên và đưa ra:
 
 # ── Clear history ─────────────────────────────────────────────────────────────
 if st.session_state.messages:
-    if st.button("🗑️ Xóa lịch sử chat", use_container_width=True):
+    if st.button("🗑️ Xóa lịch sử chat", width='stretch'):
         st.session_state.messages = []
         st.rerun()

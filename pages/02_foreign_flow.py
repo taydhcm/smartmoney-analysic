@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/02_foreign_flow.py
 Phân tích chi tiết dòng tiền khối ngoại: trend 30 phiên, room ngoại alert.
 """
@@ -62,8 +62,7 @@ with col_flow:
 
     if not ff_df.empty:
         days_map = {"1w": 7, "2w": 14, "1m": 30, "3m": 90}
-        st.plotly_chart(foreign_flow_bar_chart(ff_df, ticker, days=days_map.get(period, 7)),
-                        use_container_width=True)
+        st.plotly_chart(foreign_flow_bar_chart(ff_df, ticker, days=days_map.get(period, 7)))
         foreign_flow_table(ff_df, f"Chi tiết {ticker}")
     else:
         st.info(f"Không có dữ liệu khối ngoại cho {ticker} — dữ liệu sẽ tích lũy dần sau mỗi phiên.")
@@ -112,8 +111,7 @@ if room_alerts:
     alert_df = pd.DataFrame(room_alerts)
     alert_df = alert_df.sort_values("remaining_pct")
     st.dataframe(
-        alert_df[["ticker", "remaining_pct", "used_pct", "max_room_pct", "alert"]],
-        use_container_width=True, hide_index=True,
+        alert_df[["ticker", "remaining_pct", "used_pct", "max_room_pct", "alert"]], hide_index=True,
     )
 else:
     st.info("Không có dữ liệu room alerts")

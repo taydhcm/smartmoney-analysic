@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/03_sector_analysis.py
 Phân tích dòng tiền theo ngành: heatmap, rotation, top picks.
 """
@@ -22,7 +22,7 @@ with st.spinner("Đang tính toán sector rotation (30-60s)..."):
     sector_df = get_sector_flow_summary(period)
 
 if not sector_df.empty:
-    st.plotly_chart(sector_heatmap(sector_df), use_container_width=True)
+    st.plotly_chart(sector_heatmap(sector_df))
 
     st.subheader("📊 Bảng Xếp Hạng Ngành")
     sector_flow_table(sector_df)
@@ -56,8 +56,7 @@ if not picks_df.empty:
     display["Tự doanh (tỷ)"]   = (display["tu_doan_net_val"] / 1e9).round(1)
     display["RelVol TB"]       = display["avg_rel_vol"].round(2)
     st.dataframe(
-        display[["ticker", "Khối ngoại (tỷ)", "Tự doanh (tỷ)", "RelVol TB"]],
-        use_container_width=True, hide_index=True,
+        display[["ticker", "Khối ngoại (tỷ)", "Tự doanh (tỷ)", "RelVol TB"]], hide_index=True,
     )
     st.caption(f"Thành phần ngành: {', '.join(SECTOR_MAP[selected_sector])}")
 else:

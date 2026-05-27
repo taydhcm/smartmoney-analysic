@@ -180,7 +180,10 @@ def predict_today(
             )
             raw_vals = np.nan_to_num(raw_vals, nan=0.0, posinf=3.0, neginf=-3.0)
 
-            X    = scaler.transform(raw_vals.reshape(1, -1))
+            X_scaled = scaler.transform(raw_vals.reshape(1, -1))
+            # Wrap DataFrame với tên cột để tránh LightGBM warning “X does not have
+            # valid feature names” (model được train với DataFrame có FEATURE_COLS)
+            X = pd.DataFrame(X_scaled, columns=FEATURE_COLS)
             prob = float(model.predict_proba(X)[0, 1])
 
             # Calibrated probability (Sprint 6) — fallback = raw prob

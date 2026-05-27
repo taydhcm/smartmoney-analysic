@@ -128,7 +128,9 @@ def run_backtest(
 
     try:
         X_scaled = scaler.transform(X_raw)
-        probs = model.predict_proba(X_scaled)[:, 1]
+        # Wrap DataFrame để preserve feature names cho LightGBM
+        X_scaled_df = pd.DataFrame(X_scaled, columns=feature_cols)
+        probs = model.predict_proba(X_scaled_df)[:, 1]
     except Exception as exc:
         log.error("Backtest predict_proba loi: %s", exc)
         raise
@@ -136,7 +138,7 @@ def run_backtest(
     # Sprint 6: dùng calibrated probs nếu có calibrator
     if calibrator is not None:
         try:
-            raw_probs = model.predict_proba(X_scaled)[:, 1]
+            raw_probs = model.predict_proba(X_scaled_df)[:, 1]
             probs_cal = np.clip(calibrator.predict(raw_probs), 0.0, 1.0)
         except Exception:
             probs_cal = probs

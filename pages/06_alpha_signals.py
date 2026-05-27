@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/06_alpha_signals.py
 Alpha Signal System — ML-based prediction engine cho VN30 T+2 returns.
 
@@ -261,7 +261,7 @@ with col_train:
     do_train = st.button(
         _btn_label,
         type="primary",
-        use_container_width=True,
+        width='stretch',
         help="Build dataset → train GBM → lưu model",
     )
 
@@ -335,7 +335,6 @@ if do_train:
     fold_df = pd.DataFrame(m["fold_details"])
     st.dataframe(
         fold_df.style.format({"auc": "{:.3f}", "precision": "{:.2f}", "recall": "{:.2f}"}),
-        use_container_width=True,
     )
 
     st.session_state["_model_just_trained"] = True
@@ -353,7 +352,7 @@ with col_run:
     do_predict = st.button(
         "▶️ Chạy Prediction",
         type="primary",
-        use_container_width=True,
+        width='stretch',
         disabled=not model_exists(),
     )
 with col_all:
@@ -520,7 +519,7 @@ if do_predict or "alpha_picks" in st.session_state:
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
         )
-        st.plotly_chart(fig_bar, use_container_width=True)
+        st.plotly_chart(fig_bar)
 
         # ── 4c: Morning Report Cards (D3.5, Sprint 7) ─────────────────────────
         if _alerts_sidebar:
@@ -912,7 +911,7 @@ if do_predict or "alpha_picks" in st.session_state:
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
         )
-        st.plotly_chart(fig_heat, use_container_width=True)
+        st.plotly_chart(fig_heat)
 
         # Summary table
         st.dataframe(
@@ -926,7 +925,6 @@ if do_predict or "alpha_picks" in st.session_state:
                 "return_1d_pct":     "{:+.2f}%",
                 "relative_strength": "{:+.2f}%",
             }).background_gradient(subset=["probability"], cmap="RdYlGn"),
-            use_container_width=True,
             height=600,
         )
 
@@ -986,7 +984,7 @@ if model_exists():
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
         )
-        st.plotly_chart(fig_fi, use_container_width=True)
+        st.plotly_chart(fig_fi)
 
         # Top 5 insights
         top5 = list(reversed(fi_df.tail(5)["label"].tolist()))
@@ -1077,7 +1075,7 @@ if model_exists() and "alpha_dataset" in st.session_state:
                 plot_bgcolor="rgba(0,0,0,0)",
                 paper_bgcolor="rgba(0,0,0,0)",
             )
-            st.plotly_chart(_fig_eq, use_container_width=True)
+            st.plotly_chart(_fig_eq)
 
         # By-ticker breakdown
         if _bt.by_ticker is not None and not _bt.by_ticker.empty:
@@ -1088,13 +1086,12 @@ if model_exists() and "alpha_dataset" in st.session_state:
                         "avg_return":  "{:+.2f}%",
                         "total_trades":"{:.0f}",
                     }).background_gradient(subset=["win_rate"], cmap="RdYlGn"),
-                    use_container_width=True,
                 )
 
         # By-confidence breakdown
         if _bt.by_confidence is not None and len(_bt.by_confidence) > 0:
             with st.expander("📋 Kết quả theo ngưỡng xác suất", expanded=False):
-                st.dataframe(_bt.by_confidence, use_container_width=True)
+                st.dataframe(_bt.by_confidence)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 6 — Feature Importance

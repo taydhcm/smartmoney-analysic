@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/12_institutional_flow.py
 Sprint 12 — Trang Dashboard Dòng Tiền Tổ Chức (Institutional Flow Dashboard).
 
@@ -187,7 +187,7 @@ styled_df = (
     })
 )
 
-st.dataframe(styled_df, use_container_width=True, height=600)
+st.dataframe(styled_df, height=600)
 
 
 # ── Top movers ────────────────────────────────────────────────────────────────
@@ -237,7 +237,7 @@ try:
     fig.add_hline(y=0.15,  line_dash="dash", line_color="green",  annotation_text="Mua mạnh")
     fig.add_hline(y=-0.15, line_dash="dash", line_color="red",    annotation_text="Bán mạnh")
     fig.update_layout(showlegend=False, xaxis_tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig)
 except ImportError:
     st.bar_chart(flow_df.set_index("Mã")["Combined Score"])
 

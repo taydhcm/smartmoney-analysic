@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/11_monitoring.py
 Sprint 11 — Long-term Monitoring Dashboard.
 
@@ -46,7 +46,7 @@ with st.sidebar:
     ) / 100
 
     st.divider()
-    if st.button("🔄 Refresh", type="primary", use_container_width=True):
+    if st.button("🔄 Refresh", type="primary", width='stretch'):
         st.cache_data.clear()
         st.rerun()
 
@@ -224,7 +224,6 @@ for c in scale.conditions:
 st.dataframe(
     pd.DataFrame(cond_rows),
     hide_index=True,
-    use_container_width=True,
     column_config={
         "Status":    st.column_config.TextColumn(width="small"),
         "Điều kiện": st.column_config.TextColumn(width="medium"),

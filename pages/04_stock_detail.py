@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/04_stock_detail.py
 Chi tiết 1 mã: biểu đồ, Smart Money Score, OBV, accumulation signal.
 """
@@ -78,7 +78,7 @@ score_result = calculate_smart_money_score(
 # ── Row 1: Gauge + Key Metrics ────────────────────────────────────────────────
 col_gauge, col_metrics = st.columns([1, 2])
 with col_gauge:
-    st.plotly_chart(smart_money_gauge(score_result["score"], ticker), use_container_width=True)
+    st.plotly_chart(smart_money_gauge(score_result["score"], ticker))
     st.markdown(f"**{score_result['grade']}**")
 
 with col_metrics:
@@ -103,13 +103,13 @@ with col_metrics:
 # ── Row 2: Candlestick ────────────────────────────────────────────────────────
 st.divider()
 if not ohlcv.empty:
-    st.plotly_chart(candlestick_volume_chart(ohlcv, ticker), use_container_width=True)
+    st.plotly_chart(candlestick_volume_chart(ohlcv, ticker))
 
 # ── Row 3: Foreign Flow ───────────────────────────────────────────────────────
 st.divider()
 st.subheader("💰 Dòng Tiền Khối Ngoại (1 tuần gần nhất)")
 st.caption("Nguồn: KBS price-board – tích lũy từ đầu phiên hiện tại.")
-st.plotly_chart(foreign_flow_bar_chart(ff_df, ticker, days=7), use_container_width=True)
+st.plotly_chart(foreign_flow_bar_chart(ff_df, ticker, days=7))
 if not ff_df.empty:
     foreign_flow_table(ff_df, title="Khối Ngoại")
 

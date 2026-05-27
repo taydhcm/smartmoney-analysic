@@ -1,4 +1,4 @@
-"""
+﻿"""
 pages/09_self_learning.py
 E6 Hybrid Self-Learning UI — Sprint 9.
 
@@ -101,7 +101,7 @@ st.subheader("🔄 Re-fit Rolling Calibrator")
 
 col_btn, col_info = st.columns([1, 2])
 with col_btn:
-    do_refit = st.button("🔄 Re-fit ngay", type="primary", use_container_width=True)
+    do_refit = st.button("🔄 Re-fit ngay", type="primary", width='stretch')
 with col_info:
     _stale = needs_weekly_refit(stale_days=stale_days)
     if _stale:
@@ -201,7 +201,7 @@ else:
         legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
         hovermode="x unified",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig)
 
     # Stats row
     cs1, cs2, cs3, cs4 = st.columns(4)
@@ -228,7 +228,7 @@ else:
     _display["outcome"] = _display["outcome"].map(
         lambda v: _OUTCOME_ICONS.get(v, v)
     )
-    st.dataframe(_display, use_container_width=True, hide_index=True)
+    st.dataframe(_display, hide_index=True)
 
 # ── Section 5: Demo apply_rolling_calibration ─────────────────────────────────
 with st.expander("🔬 Demo: apply_rolling_calibration()"):
@@ -242,7 +242,7 @@ with st.expander("🔬 Demo: apply_rolling_calibration()"):
         "p_calibrated": np.round(calibrated, 4),
         "delta":       np.round(calibrated - demo_arr, 4),
     })
-    st.dataframe(demo_df, use_container_width=True, hide_index=True)
+    st.dataframe(demo_df, hide_index=True)
 
 # ── Section 6: Workflow Guide ─────────────────────────────────────────────────
 with st.expander("📖 Hướng dẫn Hybrid Self-Learning 4-bước"):
