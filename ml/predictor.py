@@ -86,6 +86,7 @@ def predict_today(
     max_rsi: float = DEFAULT_MAX_RSI,
     progress_callback: Callable[[float, str], None] | None = None,
     enable_regime_gate: bool = True,
+    apply_hard_floor: bool = True,
 ) -> list[dict]:
     """
     Dự đoán xác suất đạt target (+5%, không chạm SL -5%) trong 5 phiên cho tất cả tickers.
@@ -99,11 +100,12 @@ def predict_today(
     progress_callback  : fn(pct, msg) để cập nhật UI.
     enable_regime_gate : True → D3.1 gate tự động adjust threshold.
                          False → bỏ qua regime (dùng cho analysis/debug).
+    apply_hard_floor   : True  → áp dụng sàn cứng P_ALPHA_HARD_FLOOR (dùng cho Top Picks).
+                         False → chỉ dùng min_probability (dùng cho biểu đồ toàn thị trường).
 
     Returns
     -------
     list[dict] sorted by vn_score giảm dần (pattern › volume › RS › RSI).
-    Lọc loại: P < P_ALPHA_HARD_FLOOR (0.55) bị loại dù VN_score cao.
     Trả về [] khi regime = BEAR (enable_regime_gate=True).
     Mỗi dict có trường 'regime' chứa đầy đủ context từ S3.
     """
@@ -344,12 +346,19 @@ def predict_today(
             regime_max_positions=regime.max_positions,
         ).as_dict()
 
-        # Sàn cứng P_alpha (0.55) + regime-adjusted threshold
-        _effective_floor = max(P_ALPHA_HARD_FLOOR, effective_min_prob)
+        # Sàn cứng P_alpha + regime-adjusted threshold
+        # apply_hard_floor=True  (Top Picks): loại cổ phiếu có P < 0.55
+        # apply_hard_floor=False (toàn VN30): chỉ dùng min_probability (có thể = 0.0)
+        if apply_hard_floor:
+            _effective_floor = max(P_ALPHA_HARD_FLOOR, effective_min_prob)
+        else:
+            _effective_floor = effective_min_prob
         if prob < _effective_floor:
             log.debug(
-                "[P_FILTER] %s bị loại: P=%.2f < floor=%.2f (hard=%.2f regime=%.2f)",
-                ticker, prob, _effective_floor, P_ALPHA_HARD_FLOOR, effective_min_prob,
+                "[P_FILTER] %s bị loại: P=%.2f < floor=%.2f (hard=%s regime=%.2f)",
+                ticker, prob, _effective_floor,
+                f"{P_ALPHA_HARD_FLOOR}" if apply_hard_floor else "off",
+                effective_min_prob,
             )
             continue
 
@@ -389,6 +398,7 @@ def predict_all(
         max_rsi=100.0,
         progress_callback=progress_callback,
         enable_regime_gate=False,   # analysis mode: không block
+        apply_hard_floor=False,     # hiện toàn bộ VN30, không dùng sàn cứng
     )
     if not all_results:
         return pd.DataFrame()
