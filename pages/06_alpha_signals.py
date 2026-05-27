@@ -23,7 +23,7 @@ import streamlit as st
 from config.constants import VN30_TICKERS, SECTOR_MAP
 from ml.dataset_builder import build_dataset
 from ml.model import MODEL_LABEL_VERSION, META_PATH, MODEL_PATH, is_model_compatible, model_exists, train_model
-from ml.backtest import run_backtest
+from ml.backtest import run_backtest, run_walk_forward_backtest
 from ml.predictor import get_current_regime, get_feature_importance, predict_all, predict_today
 from ml.regime import RegimeState
 from ml.alert_generator import generate_morning_report, compute_portfolio_usage
@@ -1027,15 +1027,44 @@ if model_exists():
         st.caption("Không có feature importance data")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECTION 5.5 — In-sample Backtest
+# SECTION 5.5 — Backtest (In-sample & Walk-Forward)
 # ─────────────────────────────────────────────────────────────────────────────
 if model_exists() and "alpha_dataset" in st.session_state:
     st.divider()
-    st.header("🔄 In-sample Backtest")
-    st.caption(
-        "⚠️ **In-sample** — kết quả có overfitting bias. "
-        "Dùng để kiểm tra tính nhất quán của tín hiệu, không phải để dự báo hiệu suất thực tế."
+    st.header("🔄 Backtest")
+
+    # ── Chọn chế độ ───────────────────────────────────────────────────────────
+    _bt_mode = st.radio(
+        "Chế độ Backtest",
+        ["🎯 Walk-Forward (thực tế)", "🔬 In-sample (debug)"],
+        horizontal=True,
+        key="bt_mode",
+        help=(
+            "**Walk-Forward**: Train 70% đầu → test 30% cuối. Không data leakage. "
+            "Win rate phản ánh thực tế (~20-35%).\n\n"
+            "**In-sample**: Test lại trên chính data đã train. "
+            "Win rate ~95% là overfitting — chỉ dùng kiểm tra consistency."
+        ),
     )
+    _is_walk_forward = "Walk-Forward" in _bt_mode
+
+    if _is_walk_forward:
+        st.info(
+            "**Walk-Forward Backtest**: Model được train lại trên 70% đầu dataset (theo thời gian), "
+            "sau đó predict trên 30% cuối mà model **chưa từng thấy**. "
+            "Kết quả phản ánh hiệu suất thực tế."
+        )
+        _bt_train_ratio = st.slider(
+            "Tỷ lệ dữ liệu train",
+            min_value=0.50, max_value=0.85, value=0.70, step=0.05,
+            key="bt_train_ratio",
+            help="70% = dùng 70% đầu để train, 30% cuối để test",
+        )
+    else:
+        st.caption(
+            "⚠️ **In-sample** — kết quả có overfitting bias. "
+            "Dùng để kiểm tra tính nhất quán của tín hiệu, không phải để dự báo hiệu suất thực tế."
+        )
 
     _bt_prob = st.slider(
         "Min probability cho backtest",
@@ -1048,24 +1077,42 @@ if model_exists() and "alpha_dataset" in st.session_state:
             try:
                 from ml.model import load_model, load_calibrator
                 from ml.feature_engineering import FEATURE_COLS
-                _bt_model, _bt_scaler, _bt_meta = load_model()
-                _bt_cal = load_calibrator()
                 _bt_dataset = st.session_state["alpha_dataset"]
-                _bt_result = run_backtest(
-                    dataset=_bt_dataset,
-                    model=_bt_model,
-                    scaler=_bt_scaler,
-                    feature_cols=FEATURE_COLS,
-                    min_prob=_bt_prob,
-                    calibrator=_bt_cal,
-                    precision_target=0.35,
-                )
+
+                if _is_walk_forward:
+                    _bt_result = run_walk_forward_backtest(
+                        dataset=_bt_dataset,
+                        feature_cols=FEATURE_COLS,
+                        min_prob=_bt_prob,
+                        train_ratio=_bt_train_ratio,
+                        precision_target=0.35,
+                    )
+                else:
+                    _bt_model, _bt_scaler, _bt_meta = load_model()
+                    _bt_cal = load_calibrator()
+                    _bt_result = run_backtest(
+                        dataset=_bt_dataset,
+                        model=_bt_model,
+                        scaler=_bt_scaler,
+                        feature_cols=FEATURE_COLS,
+                        min_prob=_bt_prob,
+                        calibrator=_bt_cal,
+                        precision_target=0.35,
+                    )
                 st.session_state["_bt_result"] = _bt_result
             except Exception as _e:
                 st.error(f"Lỗi backtest: {_e}")
 
     _bt = st.session_state.get("_bt_result")
     if _bt is not None:
+        # Walk-forward: hiển thị split info
+        if getattr(_bt, "mode", "in-sample") == "walk-forward" and _bt.split_date:
+            st.success(
+                f"✅ **Walk-Forward** — Train: **{_bt.train_rows:,}** rows | "
+                f"Test: **{_bt.test_rows:,}** rows | "
+                f"Split: **{_bt.split_date}** (không data leakage)"
+            )
+
         # Summary metrics
         _bm_cols = st.columns(6)
         _bm_cols[0].metric("Tổng tín hiệu", _bt.total_signals)

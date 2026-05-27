@@ -755,6 +755,143 @@ except Exception as e: fail("export_compute_inst_flow_features", e)
 
 
 # ══════════════════════════════════════════════════════════════
+# Section 8: Walk-Forward Backtest (Module A) — 8 tests
+# ══════════════════════════════════════════════════════════════
+section("8. Walk-Forward Backtest — Module A")
+
+import numpy as np
+import pandas as pd
+from ml.backtest import run_walk_forward_backtest, BacktestResult, run_backtest
+
+# Helper: tạo synthetic dataset đủ lớn để test walk-forward
+def _make_dataset(n_rows: int = 200):
+    """Tạo dataset giả với đủ columns cần thiết."""
+    from ml.feature_engineering import FEATURE_COLS
+    rng = np.random.default_rng(42)
+    dates = pd.date_range("2025-01-01", periods=n_rows, freq="B")
+    tickers = (["VCB", "TCB", "MBB", "BID", "VPB"] * 100)[:n_rows]
+    df = pd.DataFrame({col: rng.standard_normal(n_rows) for col in FEATURE_COLS})
+    df["date"]         = dates
+    df["ticker"]       = tickers
+    df["label"]        = (rng.random(n_rows) < 0.15).astype(int)   # ~15% positive
+    df["path_max_5d"]  = rng.uniform(0.00, 0.10, n_rows)
+    df["path_min_5d"]  = rng.uniform(-0.10, 0.00, n_rows)
+    return df
+
+_FEAT_COLS = None
+try:
+    from ml.feature_engineering import FEATURE_COLS as _FEAT_COLS
+    ok("walk-forward: import FEATURE_COLS ok")
+except Exception as e:
+    fail("wf_import_feature_cols", e)
+
+# 8.1 BacktestResult có mode, split_date, train_rows, test_rows
+try:
+    bt = BacktestResult(
+        total_signals=10, total_trades=10, win_rate=0.3,
+        avg_return_pct=2.0, avg_win_pct=5.0, avg_loss_pct=-3.0,
+        precision=0.3, precision_target=0.35, meets_target=False,
+        max_drawdown_pct=-5.0, sharpe=1.2, calmar=0.5,
+        trades_df=pd.DataFrame(), equity_curve=pd.Series(dtype=float),
+        by_ticker=pd.DataFrame(), by_confidence={},
+        mode="walk-forward", split_date="2025-10-01",
+        train_rows=700, test_rows=300,
+    )
+    assert bt.mode == "walk-forward"
+    assert bt.split_date == "2025-10-01"
+    assert bt.train_rows == 700
+    assert bt.test_rows == 300
+    ok("BacktestResult có fields mode/split_date/train_rows/test_rows")
+except Exception as e: fail("BacktestResult_wf_fields", e)
+
+# 8.2 summary() chứa mode + split info
+try:
+    s = bt.summary()
+    assert "mode" in s
+    assert s["mode"] == "walk-forward"
+    assert "split_date" in s
+    assert "train_rows" in s
+    ok("BacktestResult.summary() chứa walk-forward info")
+except Exception as e: fail("summary_wf_info", e)
+
+# 8.3 run_walk_forward_backtest trả về BacktestResult
+try:
+    if _FEAT_COLS:
+        ds = _make_dataset(200)
+        result = run_walk_forward_backtest(ds, _FEAT_COLS, min_prob=0.5, train_ratio=0.70)
+        assert isinstance(result, BacktestResult)
+        ok("run_walk_forward_backtest trả về BacktestResult")
+    else:
+        ok("run_walk_forward_backtest trả về BacktestResult (skipped)")
+except Exception as e: fail("wf_returns_BacktestResult", e)
+
+# 8.4 mode = "walk-forward"
+try:
+    if _FEAT_COLS:
+        ds = _make_dataset(200)
+        result = run_walk_forward_backtest(ds, _FEAT_COLS, min_prob=0.5, train_ratio=0.70)
+        assert result.mode == "walk-forward"
+        ok("run_walk_forward_backtest mode = 'walk-forward'")
+    else:
+        ok("mode=walk-forward (skipped)")
+except Exception as e: fail("wf_mode_field", e)
+
+# 8.5 split_date không None + train_rows + test_rows hợp lý
+try:
+    if _FEAT_COLS:
+        ds = _make_dataset(200)
+        # min_prob=0.0 để đảm bảo luôn có signal (không phụ thuộc vào model threshold)
+        result = run_walk_forward_backtest(ds, _FEAT_COLS, min_prob=0.0, train_ratio=0.70)
+        assert result.split_date is not None
+        assert result.train_rows > 0
+        assert result.test_rows > 0
+        assert result.train_rows + result.test_rows <= 200
+        ok("walk-forward split_date + train/test_rows hợp lý")
+    else:
+        ok("split info hợp lý (skipped)")
+except Exception as e: fail("wf_split_info", e)
+
+# 8.6 train_ratio=0.70 → test chiếm ~30%
+try:
+    if _FEAT_COLS:
+        ds = _make_dataset(200)
+        result = run_walk_forward_backtest(ds, _FEAT_COLS, min_prob=0.0, train_ratio=0.70)
+        ratio = result.test_rows / (result.train_rows + result.test_rows)
+        assert 0.25 <= ratio <= 0.35, f"Expected ~30% test, got {ratio:.1%}"
+        ok("walk-forward train_ratio=0.70 → test ~30%")
+    else:
+        ok("train_ratio=0.70 split (skipped)")
+except Exception as e: fail("wf_split_ratio", e)
+
+# 8.7 dataset quá nhỏ → _empty_result không crash
+try:
+    if _FEAT_COLS:
+        tiny_ds = _make_dataset(30)
+        result = run_walk_forward_backtest(tiny_ds, _FEAT_COLS, min_prob=0.5, train_ratio=0.70)
+        assert result.total_trades == 0   # quá nhỏ → empty result
+        ok("walk-forward dataset nhỏ → empty result không crash")
+    else:
+        ok("dataset nhỏ (skipped)")
+except Exception as e: fail("wf_small_dataset", e)
+
+# 8.8 in-sample BacktestResult vẫn hoạt động (backward compat)
+try:
+    bt_is = BacktestResult(
+        total_signals=5, total_trades=5, win_rate=0.9,
+        avg_return_pct=7.0, avg_win_pct=8.0, avg_loss_pct=-3.0,
+        precision=0.9, precision_target=0.35, meets_target=True,
+        max_drawdown_pct=0.0, sharpe=83.0, calmar=0.0,
+        trades_df=pd.DataFrame(), equity_curve=pd.Series(dtype=float),
+        by_ticker=pd.DataFrame(), by_confidence={},
+    )
+    assert bt_is.mode == "in-sample"     # default
+    assert bt_is.split_date is None      # default
+    assert bt_is.train_rows == 0         # default
+    ok("In-sample BacktestResult backward compat (mode defaults)")
+except Exception as e: fail("in_sample_backward_compat", e)
+
+
+# ══════════════════════════════════════════════════════════════
 # Summary
 # ══════════════════════════════════════════════════════════════
 total = PASS + FAIL
