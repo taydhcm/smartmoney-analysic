@@ -188,14 +188,52 @@ def get_top_foreign_net(exchange: str = "HOSE", top_n: int = 15) -> dict[str, pd
         return {"buy": empty, "sell": empty}
 
 
+# Cổ phiếu ngân hàng: trần sở hữu nước ngoài 30%; còn lại 49%
+_BANK_TICKERS = frozenset({
+    "ACB", "BID", "CTG", "HDB", "LPB", "MBB",
+    "SHB", "SSB", "STB", "TCB", "TPB", "VCB", "VIB", "VPB",
+})
+
+
+@ttl_cache(ttl=3600)  # total shares thay đổi ít → cache 1 giờ
+def _get_total_shares(ticker: str) -> float:
+    """
+    Lấy tổng cổ phiếu lưu hành từ vnstock Company overview (TCBS).
+    Trả về 0.0 nếu không lấy được.
+    TCBS trả về outstanding_share theo đơn vị triệu cp → ×1_000_000.
+    """
+    try:
+        from vnstock.api.company import Company  # type: ignore
+        df = Company(symbol=ticker, source="TCBS").overview()
+        if df.empty:
+            return 0.0
+        col = next(
+            (c for c in df.columns if "outstanding" in c.lower() or "issue" in c.lower()),
+            None,
+        )
+        if col is None:
+            return 0.0
+        val = float(pd.to_numeric(df[col].iloc[0], errors="coerce") or 0)
+        if val <= 0:
+            return 0.0
+        # TCBS trả về triệu cp (ví dụ ACB = 4400 → 4,400,000,000 cp)
+        return val * 1_000_000 if val < 500_000 else val
+    except Exception as exc:
+        log.debug("_get_total_shares(%s): %s", ticker, exc)
+        return 0.0
+
+
 @ttl_cache()
 def get_foreign_room(ticker: str) -> dict:
     """
-    Lấy room nước ngoài còn lại của 1 mã.
-    Luôn dùng KBS (real-time, không cần lịch sử).
+    Lấy room nước ngoài còn lại của 1 mã từ KBS price_board.
+
+    KBS trả về cột `foreign_room` (số cp còn được mua, đơn vị: cổ phiếu).
+    Để tính %, cần tổng cp lưu hành → gọi thêm _get_total_shares().
 
     Returns:
-        {ticker, max_room_pct, used_pct, remaining_pct, alert}
+        {ticker, max_room_pct, used_pct, remaining_pct, foreign_room_shares, alert}
+        remaining_pct = None nếu không tính được % (thiếu total shares)
     """
     try:
         from vnstock.api.trading import Trading  # type: ignore
@@ -204,18 +242,34 @@ def get_foreign_room(ticker: str) -> dict:
             raise ValueError("price_board trống")
 
         row = board.iloc[0]
-        fp = float(pd.to_numeric(row.get("foreign_ownership_ratio", 0), errors="coerce") or 0)
-        used_pct = fp if fp > 1 else fp * 100
+        # KBS: foreign_room = số cp khối ngoại còn được mua (không phải %)
+        foreign_room_shares = int(
+            pd.to_numeric(row.get("foreign_room", 0), errors="coerce") or 0
+        )
 
-        max_pct   = 49.0
-        remaining = max_pct - used_pct
-        return {
-            "ticker":        ticker,
-            "max_room_pct":  round(max_pct, 2),
-            "used_pct":      round(used_pct, 2),
-            "remaining_pct": round(remaining, 2),
-            "alert":         remaining < FOREIGN_ROOM_ALERT_PCT,
-        }
+        total_shares = _get_total_shares(ticker)
+        max_pct = 30.0 if ticker.upper() in _BANK_TICKERS else 49.0
+
+        if total_shares > 0:
+            remaining_pct = round(foreign_room_shares / total_shares * 100, 2)
+            used_pct      = round(max(max_pct - remaining_pct, 0.0), 2)
+            return {
+                "ticker":              ticker,
+                "max_room_pct":        max_pct,
+                "used_pct":            used_pct,
+                "remaining_pct":       remaining_pct,
+                "foreign_room_shares": foreign_room_shares,
+                "alert":               remaining_pct < FOREIGN_ROOM_ALERT_PCT,
+            }
+        else:
+            # Không lấy được total shares → trả về số cp thô, không có %
+            log.info("get_foreign_room(%s): thiếu total_shares, trả về shares thô", ticker)
+            return {
+                "ticker":              ticker,
+                "remaining_pct":       None,
+                "foreign_room_shares": foreign_room_shares,
+                "alert":               False,
+            }
     except Exception as exc:
         log.warning("get_foreign_room(%s) lỗi: %s", ticker, exc)
         return {"ticker": ticker, "remaining_pct": None, "alert": False}

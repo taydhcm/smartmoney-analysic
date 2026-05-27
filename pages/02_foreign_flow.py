@@ -44,14 +44,17 @@ with col_room:
     if room.get("remaining_pct") is not None:
         remaining = room["remaining_pct"]
         if room.get("alert"):
-            st.error(f"⚠️ Room còn lại: **{remaining}%** – GẦN ĐẦY!")
+            st.error(f"⚠️ Room còn lại: **{remaining:.1f}%** – GẦN ĐẦY!")
         elif remaining < 15:
-            st.warning(f"Room còn lại: **{remaining}%**")
+            st.warning(f"Room còn lại: **{remaining:.1f}%**")
         else:
-            st.success(f"Room còn lại: **{remaining}%**")
-
-        st.metric("Max room", f"{room['max_room_pct']}%")
-        st.metric("Đang dùng", f"{room['used_pct']}%")
+            st.success(f"Room còn lại: **{remaining:.1f}%**")
+        if room.get("max_room_pct"):
+            st.metric("Max room", f"{room['max_room_pct']}%")
+            st.metric("Đang dùng", f"{room['used_pct']}%")
+    elif room.get("foreign_room_shares"):
+        rm = room["foreign_room_shares"] / 1_000_000
+        st.info(f"Room còn lại: **{rm:.1f}M cp**")
     else:
         st.info("Không có dữ liệu room")
 
@@ -88,15 +91,13 @@ with st.spinner("Kiểm tra room toàn VN30..."):
         for _, row in board.iterrows():
             try:
                 tkr = str(row[ticker_col])
-                fp = float(pd.to_numeric(row.get("foreign_ownership_ratio", 0), errors="coerce") or 0)
-                used_pct = fp if fp > 1 else fp * 100
-                remaining = round(49.0 - used_pct, 2)
+                # KBS board: foreign_room = cp còn được mua (đơn vị: cổ phiếu)
+                room_shares = int(pd.to_numeric(row.get("foreign_room", 0), errors="coerce") or 0)
                 room_alerts.append({
-                    "ticker":        tkr,
-                    "remaining_pct": remaining,
-                    "used_pct":      round(used_pct, 2),
-                    "max_room_pct":  49.0,
-                    "alert":         remaining < 5.0,
+                    "ticker":              tkr,
+                    "foreign_room_M_cp":  round(room_shares / 1_000_000, 2),
+                    "foreign_buy_M_cp":   round(int(pd.to_numeric(row.get("foreign_buy_volume", 0), errors="coerce") or 0) / 1_000_000, 2),
+                    "foreign_sell_M_cp":  round(int(pd.to_numeric(row.get("foreign_sell_volume", 0), errors="coerce") or 0) / 1_000_000, 2),
                 })
             except Exception:
                 pass
@@ -104,14 +105,20 @@ with st.spinner("Kiểm tra room toàn VN30..."):
         # fallback: gọi từng ticker qua get_foreign_room (chậm hơn)
         for t in VN30_TICKERS:
             r = get_foreign_room(t)
-            if r.get("remaining_pct") is not None:
-                room_alerts.append(r)
+            if r.get("foreign_room_shares") is not None:
+                room_alerts.append({
+                    "ticker":            t,
+                    "foreign_room_M_cp": round(r["foreign_room_shares"] / 1_000_000, 2),
+                    "foreign_buy_M_cp":  0.0,
+                    "foreign_sell_M_cp": 0.0,
+                })
 
 if room_alerts:
     alert_df = pd.DataFrame(room_alerts)
-    alert_df = alert_df.sort_values("remaining_pct")
+    alert_df = alert_df.sort_values("foreign_room_M_cp")
     st.dataframe(
-        alert_df[["ticker", "remaining_pct", "used_pct", "max_room_pct", "alert"]], hide_index=True,
+        alert_df[["ticker", "foreign_room_M_cp", "foreign_buy_M_cp", "foreign_sell_M_cp"]],
+        hide_index=True,
     )
 else:
     st.info("Không có dữ liệu room alerts")

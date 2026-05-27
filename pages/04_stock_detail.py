@@ -53,7 +53,8 @@ if not td_df.empty and "net_val" in td_df.columns and td_df["net_val"].sum() != 
     p_net = td_df["net_val"].sum()
 elif not td_df.empty and "net_vol" in td_df.columns:
     close_px = float(ohlcv["close"].iloc[-1]) if (not ohlcv.empty and "close" in ohlcv.columns) else 0
-    p_net = td_df["net_vol"].sum() * close_px
+    # VCI OHLCV trả về giá theo nghìn VND → ×1000 để đổi ra VND trước khi nhân vol
+    p_net = td_df["net_vol"].sum() * close_px * 1_000
 else:
     p_net = 0
 avg_val  = ohlcv["volume"].mean() * ohlcv["close"].mean() if not ohlcv.empty else 1e9
@@ -92,10 +93,13 @@ with col_metrics:
     m3.metric("MFI",            f"{mfi_last:.0f}")
     m4.metric("RelVol TB",      f"{rv_mean:.2f}x")
 
-    room_pct = room.get("remaining_pct")
+    room_pct    = room.get("remaining_pct")
+    room_shares = room.get("foreign_room_shares")
     if room_pct is not None:
-        st.info(f"🚪 Foreign room còn lại: **{room_pct}%**" +
+        st.info(f"🚪 Foreign room còn lại: **{room_pct:.1f}%**" +
                 (" ⚠️" if room.get("alert") else ""))
+    elif room_shares:
+        st.info(f"🚪 Foreign room còn lại: **{room_shares/1_000_000:.1f}M cp**")
 
     acc_summary = get_accumulation_summary(ticker, ohlcv)
     st.info(f"🔍 {acc_summary}")
