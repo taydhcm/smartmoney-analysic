@@ -106,14 +106,19 @@ def _make_model(pos_weight: float = 5.0):
 
 # ── Training ───────────────────────────────────────────────────────────────────
 
-def train_model(dataset: pd.DataFrame, save: bool = True) -> dict:
+def train_model(
+    dataset: pd.DataFrame,
+    save: bool = True,
+    data_period: str = "unknown",
+) -> dict:
     """
     Train model trên dataset, cross-validate với TimeSeriesSplit.
 
     Parameters
     ----------
-    dataset : Output của build_dataset() với cột FEATURE_COLS + "label".
-    save    : Nếu True, lưu model + scaler vào ml/artifacts/.
+    dataset     : Output của build_dataset() với cột FEATURE_COLS + "label".
+    save        : Nếu True, lưu model + scaler vào ml/artifacts/.
+    data_period : Kỳ OHLCV đã dùng build dataset ("3m", "6m", "12m", ...) để lưu metadata.
 
     Returns
     -------
@@ -205,8 +210,19 @@ def train_model(dataset: pd.DataFrame, save: bool = True) -> dict:
     auc_vals  = [m["auc"] for m in fold_metrics]
     prec_vals = [m["precision"] for m in fold_metrics]
 
+    # ── Data provenance (Module D) ──────────────────────────────────────────────
+    _data_start = str(dataset["date"].min().date()) if "date" in dataset.columns else "unknown"
+    _data_end   = str(dataset["date"].max().date()) if "date" in dataset.columns else "unknown"
+    _label_rate = float(dataset["label"].mean())    if "label" in dataset.columns else float(pos_rate)
+
     metrics = {
         "trained_at":        datetime.now().isoformat(),
+        # ── Data provenance ───────────────────────────────────────────────────
+        "data_period":       data_period,
+        "data_start":        _data_start,
+        "data_end":          _data_end,
+        "label_rate":        _label_rate,
+        # ── Dataset stats ────────────────────────────────────────────────────
         "n_samples":         int(len(X_raw)),
         "n_tickers":         int(dataset["ticker"].nunique()) if "ticker" in dataset.columns else 0,
         "pos_rate":          float(pos_rate),
@@ -220,7 +236,6 @@ def train_model(dataset: pd.DataFrame, save: bool = True) -> dict:
         "cal_n_samples":     int(cal_n),
         "feature_importance": feat_imp,
         # ── Compatibility signature ────────────────────────────────────────────
-        # Dùng để phát hiện model stale khi FEATURE_COLS hoặc label thay đổi.
         "feature_cols":      list(FEATURE_COLS),
         "n_features":        len(FEATURE_COLS),
         "label_version":     MODEL_LABEL_VERSION,

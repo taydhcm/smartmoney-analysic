@@ -1,4 +1,4 @@
-﻿"""
+"""
 pages/06_alpha_signals.py
 Alpha Signal System — ML-based prediction engine cho VN30 T+2 returns.
 
@@ -12,7 +12,7 @@ Pipeline:
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, date as _date
 
 import numpy as np
 import pandas as pd
@@ -229,11 +229,29 @@ with col_status:
             import pickle
             with open(META_PATH, "rb") as _f:
                 _meta = pickle.load(_f)
-            trained_at = _meta.get("trained_at", "unknown")
+            trained_at  = _meta.get("trained_at", "unknown")
+            _data_start = _meta.get("data_start", None)
+            _data_end   = _meta.get("data_end",   None)
+            _period_str = _meta.get("data_period", "?")
+            _label_rate = _meta.get("label_rate",  _meta.get("pos_rate", 0.0))
+
+            # Staleness = số ngày từ data_end đến hôm nay
+            _stale_days: int | None = None
+            if _data_end and _data_end != "unknown":
+                try:
+                    _stale_days = (_date.today() - _date.fromisoformat(_data_end)).days
+                except ValueError:
+                    pass
+            _stale_str  = f"{_stale_days} ngày" if _stale_days is not None else "?"
+            _stale_icon = " ⚠️" if (_stale_days is not None and _stale_days > 7) else ""
+
             st.success(
                 f"✅ Model sẵn sàng — **{_meta.get('model_type', 'GBM')}**\n\n"
                 f"- Train: {_meta.get('n_samples', '?')} rows | "
-                f"{_meta.get('n_tickers', '?')} tickers\n"
+                f"{_meta.get('n_tickers', '?')} tickers | "
+                f"Label rate: **{_label_rate:.1%}** (y=1 ≥ +5%)\n"
+                f"- Data: `{_data_start}` → `{_data_end}` (period: **{_period_str}**){_stale_icon}\n"
+                f"- Data stale: **{_stale_str}** kể từ ngày cuối trong dataset\n"
                 f"- Features: **{_meta.get('n_features', '?')}** | "
                 f"Label: `{_meta.get('label_version', '?')}`\n"
                 f"- CV AUC: **{_meta.get('cv_auc_mean', 0):.3f}** "
@@ -241,6 +259,11 @@ with col_status:
                 f"- Precision@0.65: **{_meta.get('cv_prec_mean', 0):.2f}**\n"
                 f"- Trained at: {trained_at[:19] if trained_at else '?'}"
             )
+            if _stale_days is not None and _stale_days > 7:
+                st.warning(
+                    f"⚠️ Data stale **{_stale_days} ngày** — cân nhắc Retrain để cập nhật "
+                    f"pattern thị trường mới nhất."
+                )
         except Exception:
             st.success("✅ Model sẵn sàng (metadata không đọc được)")
 
@@ -318,7 +341,7 @@ if do_train:
 
     with st.spinner("Training GBM model..."):
         try:
-            result = train_model(dataset, save=True)
+            result = train_model(dataset, save=True, data_period=training_period)
         except Exception as exc:
             st.error(f"Lỗi train model: {exc}")
             st.stop()
