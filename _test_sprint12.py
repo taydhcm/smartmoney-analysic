@@ -892,6 +892,80 @@ except Exception as e: fail("in_sample_backward_compat", e)
 
 
 # ══════════════════════════════════════════════════════════════
+# Section 9: Module C — Transaction Cost
+# ══════════════════════════════════════════════════════════════
+print("\n── Section 9: Module C — Transaction Cost ──────────────")
+
+# 9.1 BacktestResult có fields gross_avg_return_pct và round_trip_cost_pct
+try:
+    bt_c = BacktestResult(
+        total_signals=10, total_trades=10, win_rate=0.5,
+        avg_return_pct=1.0, avg_win_pct=3.0, avg_loss_pct=-2.0,
+        precision=0.5, precision_target=0.35, meets_target=True,
+        max_drawdown_pct=0.0, sharpe=1.0, calmar=0.0,
+        trades_df=pd.DataFrame(), equity_curve=pd.Series(dtype=float),
+        by_ticker=pd.DataFrame(), by_confidence={},
+        gross_avg_return_pct=1.4,
+        round_trip_cost_pct=0.4,
+    )
+    assert bt_c.gross_avg_return_pct == 1.4
+    assert bt_c.round_trip_cost_pct  == 0.4
+    ok("BacktestResult.gross_avg_return_pct và round_trip_cost_pct tồn tại")
+except Exception as e: fail("backtest_result_cost_fields", e)
+
+# 9.2 run_backtest với round_trip_cost: net < gross
+try:
+    from ml.model import load_model, load_calibrator
+    from ml.feature_engineering import FEATURE_COLS as _FEAT_COLS_C
+    _model_c, _scaler_c, _ = load_model()
+    _cal_c = load_calibrator()
+
+    rng = np.random.default_rng(42)
+    n = 200
+    _fake_ds = pd.DataFrame({
+        **{c: rng.standard_normal(n) for c in _FEAT_COLS_C},
+        "ticker":        ["VNM"] * n,
+        "date":          pd.date_range("2022-01-01", periods=n, freq="B"),
+        "path_max_5d":   rng.uniform(0.01, 0.10, n),
+        "path_min_5d":   rng.uniform(-0.10, -0.01, n),
+        "label":         rng.integers(0, 2, n),
+        "v6_calibrated": rng.uniform(0.4, 0.9, n),
+    })
+    _bt_gross = run_backtest(_fake_ds, _model_c, _scaler_c, _FEAT_COLS_C,
+                              min_prob=0.0, calibrator=_cal_c, round_trip_cost=0.0)
+    _bt_net   = run_backtest(_fake_ds, _model_c, _scaler_c, _FEAT_COLS_C,
+                              min_prob=0.0, calibrator=_cal_c, round_trip_cost=0.004)
+    if _bt_gross.total_trades > 0 and _bt_net.total_trades > 0:
+        assert _bt_net.avg_return_pct < _bt_gross.avg_return_pct, \
+            "Net return phải nhỏ hơn gross return khi có phí"
+        assert _bt_net.round_trip_cost_pct == 0.4
+        assert abs(_bt_gross.gross_avg_return_pct - _bt_gross.avg_return_pct) < 1e-6, \
+            "Khi cost=0, gross == net"
+        ok("run_backtest: net return < gross return khi round_trip_cost > 0")
+    else:
+        ok("run_backtest transaction cost (skipped — no trades)")
+except ImportError:
+    ok("run_backtest transaction cost (skipped — no model)")
+except Exception as e: fail("run_backtest_transaction_cost", e)
+
+# 9.3 run_walk_forward_backtest nhận round_trip_cost (không crash)
+try:
+    from ml.backtest import run_walk_forward_backtest as _rwf
+    import inspect as _ins
+    _sig = _ins.signature(_rwf)
+    assert "round_trip_cost" in _sig.parameters, "run_walk_forward_backtest thiếu round_trip_cost"
+    ok("run_walk_forward_backtest có param round_trip_cost")
+except Exception as e: fail("wf_round_trip_cost_param", e)
+
+# 9.4 ROUND_TRIP_COST constant tồn tại
+try:
+    from ml.backtest import ROUND_TRIP_COST
+    assert ROUND_TRIP_COST == 0.004, f"Expected 0.004, got {ROUND_TRIP_COST}"
+    ok(f"ROUND_TRIP_COST = {ROUND_TRIP_COST} (0.40% round-trip)")
+except Exception as e: fail("round_trip_cost_constant", e)
+
+
+# ══════════════════════════════════════════════════════════════
 # Summary
 # ══════════════════════════════════════════════════════════════
 total = PASS + FAIL

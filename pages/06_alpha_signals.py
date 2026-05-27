@@ -1072,6 +1072,14 @@ if model_exists() and "alpha_dataset" in st.session_state:
         key="bt_min_prob",
     )
 
+    _bt_fee_pct = st.number_input(
+        "Phí giao dịch round-trip (%)",
+        min_value=0.0, max_value=1.0, value=0.40, step=0.05,
+        key="bt_fee",
+        help="VN thực tế: mua 0.15% + bán 0.15% + thuế 0.10% ≈ 0.40%. Đặt 0 để xem gross return.",
+    )
+    _bt_fee = _bt_fee_pct / 100.0
+
     if st.button("▶ Chạy Backtest", key="run_bt"):
         with st.spinner("Đang chạy backtest…"):
             try:
@@ -1086,6 +1094,7 @@ if model_exists() and "alpha_dataset" in st.session_state:
                         min_prob=_bt_prob,
                         train_ratio=_bt_train_ratio,
                         precision_target=0.35,
+                        round_trip_cost=_bt_fee,
                     )
                 else:
                     _bt_model, _bt_scaler, _bt_meta = load_model()
@@ -1098,6 +1107,7 @@ if model_exists() and "alpha_dataset" in st.session_state:
                         min_prob=_bt_prob,
                         calibrator=_bt_cal,
                         precision_target=0.35,
+                        round_trip_cost=_bt_fee,
                     )
                 st.session_state["_bt_result"] = _bt_result
             except Exception as _e:
@@ -1118,14 +1128,17 @@ if model_exists() and "alpha_dataset" in st.session_state:
         _bm_cols[0].metric("Tổng tín hiệu", _bt.total_signals)
         _bm_cols[1].metric("Tổng trades",   _bt.total_trades)
         _bm_cols[2].metric("Win Rate",       f"{_bt.win_rate:.1%}")
-        _bm_cols[3].metric("Avg Return",     f"{_bt.avg_return_pct:+.2f}%")
-        _bm_cols[4].metric("Sharpe",         f"{_bt.sharpe:.2f}")
-        _bm_cols[5].metric("Max Drawdown",   f"{_bt.max_drawdown_pct:.1f}%")
+        _bm_cols[3].metric("Gross Return",   f"{_bt.gross_avg_return_pct:+.2f}%")
+        _bm_cols[4].metric("Net Return (sau phí)", f"{_bt.avg_return_pct:+.2f}%",
+                            delta=f"phí {_bt.round_trip_cost_pct:.2f}%/lệnh" if _bt.round_trip_cost_pct > 0 else "0% phí",
+                            delta_color="inverse" if _bt.round_trip_cost_pct > 0 else "off")
+        _bm_cols[5].metric("Sharpe",         f"{_bt.sharpe:.2f}")
 
         _bm_cols2 = st.columns(4)
-        _bm_cols2[0].metric("Avg Win",  f"{_bt.avg_win_pct:+.2f}%")
-        _bm_cols2[1].metric("Avg Loss", f"{_bt.avg_loss_pct:+.2f}%")
-        _bm_cols2[2].metric("Precision", f"{_bt.precision:.1%}",
+        _bm_cols2[0].metric("Max Drawdown",  f"{_bt.max_drawdown_pct:.1f}%")
+        _bm_cols2[1].metric("Avg Win",  f"{_bt.avg_win_pct:+.2f}%")
+        _bm_cols2[2].metric("Avg Loss", f"{_bt.avg_loss_pct:+.2f}%")
+        _bm_cols2[3].metric("Precision", f"{_bt.precision:.1%}",
                             delta=f"target ≥{_bt.precision_target:.0%}",
                             delta_color="normal" if _bt.meets_target else "inverse")
         _bm_cols2[3].metric("Calmar",   f"{_bt.calmar:.2f}")

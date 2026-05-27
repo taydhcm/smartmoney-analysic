@@ -27,6 +27,10 @@ TARGET_PCT    = 0.05    # M2 target +5%
 SL_PCT        = -0.05   # M2 stop-loss -5%
 POSITION_SIZE = 0.10    # 10% vốn mỗi trade (fixed, đơn giản hoá)
 
+# ── Transaction cost (Module C) ───────────────────────────────────────────────
+# Thị trường VN thực tế: mua 0.15% + bán 0.15% + thuế GTGT 0.10% + slippage 0.0%
+ROUND_TRIP_COST = 0.004   # 0.40% mỗi round-trip (mua + bán)
+
 
 @dataclass
 class BacktestResult:
@@ -56,24 +60,29 @@ class BacktestResult:
     split_date:       str | None      = None          # Ngày phân tách train/test
     train_rows:       int             = 0             # Số rows dùng train
     test_rows:        int             = 0             # Số rows dùng test
+    # ── Transaction cost (Module C) ────────────────────────────────────────────
+    gross_avg_return_pct: float       = 0.0           # Avg return trước phí (%)
+    round_trip_cost_pct:  float       = 0.0           # Phí round-trip đã áp dụng (%)
 
     def summary(self) -> dict:
         return {
-            "mode":            self.mode,
-            "total_trades":    self.total_trades,
-            "win_rate":        f"{self.win_rate:.1%}",
-            "precision":       f"{self.precision:.3f}",
-            "precision_target": f"{self.precision_target:.2f}",
-            "meets_target":    self.meets_target,
-            "avg_return":      f"{self.avg_return_pct:+.2f}%",
-            "avg_win":         f"{self.avg_win_pct:+.2f}%",
-            "avg_loss":        f"{self.avg_loss_pct:+.2f}%",
-            "max_drawdown":    f"{self.max_drawdown_pct:.2f}%",
-            "sharpe":          f"{self.sharpe:.2f}",
-            "calmar":          f"{self.calmar:.2f}",
-            "split_date":      self.split_date,
-            "train_rows":      self.train_rows,
-            "test_rows":       self.test_rows,
+            "mode":                  self.mode,
+            "total_trades":          self.total_trades,
+            "win_rate":              f"{self.win_rate:.1%}",
+            "precision":             f"{self.precision:.3f}",
+            "precision_target":      f"{self.precision_target:.2f}",
+            "meets_target":          self.meets_target,
+            "gross_avg_return":      f"{self.gross_avg_return_pct:+.2f}%",
+            "avg_return (net)":      f"{self.avg_return_pct:+.2f}%",
+            "round_trip_cost":       f"{self.round_trip_cost_pct:.2f}%",
+            "avg_win":               f"{self.avg_win_pct:+.2f}%",
+            "avg_loss":              f"{self.avg_loss_pct:+.2f}%",
+            "max_drawdown":          f"{self.max_drawdown_pct:.2f}%",
+            "sharpe":                f"{self.sharpe:.2f}",
+            "calmar":                f"{self.calmar:.2f}",
+            "split_date":            self.split_date,
+            "train_rows":            self.train_rows,
+            "test_rows":             self.test_rows,
         }
 
 
@@ -85,8 +94,9 @@ def run_backtest(
     min_prob:             float = 0.65,
     initial_equity:       float = 100.0,
     position_size_pct:    float = POSITION_SIZE,
-    precision_target:     float = 0.35,          # Sprint 6: target precision
-    calibrator=None,                              # Sprint 6: isotonic calibrator (optional)
+    precision_target:     float = 0.35,
+    calibrator=None,
+    round_trip_cost:      float = 0.0,            # Module C: phí round-trip (0.0 = không tính)
 ) -> BacktestResult:
     """
     Chạy in-sample backtest trên dataset lịch sử.
@@ -102,6 +112,8 @@ def run_backtest(
     position_size_pct: % vốn mỗi trade.
     precision_target : Target precision để đánh giá meets_target (Sprint 6, default 0.35).
     calibrator       : Isotonic calibrator (Sprint 6). Nếu có, dùng p_calibrated cho signal.
+    round_trip_cost  : Phí round-trip mỗi trade (Module C). 0.004 = 0.40% VN thực tế.
+                       0.0 (default) = không tính phí (backward compat).
 
     Returns
     -------
@@ -174,12 +186,16 @@ def run_backtest(
     win_mask  = signals_df["label"] == 1
     loss_mask = ~win_mask
 
-    trade_return = np.where(
+    gross_return = np.where(
         win_mask,
-        signals_df["path_max_5d"].clip(upper=TARGET_PCT * 2),     # win: capped at 10%
-        signals_df["path_min_5d"].clip(lower=SL_PCT * 2),         # loss: floored at -10%
+        signals_df["path_max_5d"].clip(upper=TARGET_PCT * 2),
+        signals_df["path_min_5d"].clip(lower=SL_PCT * 2),
     )
-    signals_df["trade_return"] = trade_return
+    # Module C: trừ phí round-trip mỗi trade
+    net_return = gross_return - round_trip_cost
+
+    signals_df["gross_return"] = gross_return
+    signals_df["trade_return"] = net_return    # net dùng cho equity curve + metrics
 
     total_trades = len(signals_df)
     win_rate     = float(signals_df["label"].mean())
@@ -187,7 +203,8 @@ def run_backtest(
     win_returns  = signals_df.loc[win_mask,  "trade_return"]
     loss_returns = signals_df.loc[loss_mask, "trade_return"]
 
-    avg_return  = float(signals_df["trade_return"].mean())
+    gross_avg   = float(gross_return.mean())
+    avg_return  = float(net_return.mean())
     avg_win     = float(win_returns.mean())  if not win_returns.empty  else 0.0
     avg_loss    = float(loss_returns.mean()) if not loss_returns.empty else 0.0
 
@@ -257,12 +274,13 @@ def run_backtest(
     # ── Trade log ────────────────────────────────────────────────────────────
     trades_out = signals_df[[
         "date", "ticker", "p_alpha", "p_calibrated", "confidence",
-        "label", "trade_return", "path_max_5d", "path_min_5d",
+        "label", "gross_return", "trade_return", "path_max_5d", "path_min_5d",
     ]].copy()
-    trades_out["trade_return_pct"] = (trades_out["trade_return"] * 100).round(2)
+    trades_out["gross_return_pct"] = (trades_out["gross_return"] * 100).round(2)
+    trades_out["net_return_pct"]   = (trades_out["trade_return"] * 100).round(2)
     trades_out["p_alpha"]          = trades_out["p_alpha"].round(4)
     trades_out["p_calibrated"]     = trades_out["p_calibrated"].round(4)
-    trades_out = trades_out.drop(columns=["trade_return"])
+    trades_out = trades_out.drop(columns=["gross_return", "trade_return"])
 
     return BacktestResult(
         total_signals=total_signals,
@@ -281,6 +299,8 @@ def run_backtest(
         equity_curve=equity_series,
         by_ticker=by_ticker,
         by_confidence=by_confidence,
+        gross_avg_return_pct=round(gross_avg * 100, 3),
+        round_trip_cost_pct=round(round_trip_cost * 100, 3),
     )
 
 
@@ -310,6 +330,7 @@ def run_walk_forward_backtest(
     initial_equity:    float = 100.0,
     position_size_pct: float = POSITION_SIZE,
     precision_target:  float = 0.35,
+    round_trip_cost:   float = 0.0,   # Module C: phí round-trip (0.0 = không tính)
 ) -> BacktestResult:
     """
     Walk-forward backtest thực sự (out-of-sample).
@@ -324,13 +345,14 @@ def run_walk_forward_backtest(
 
     Parameters
     ----------
-    dataset       : Output của build_dataset() — cần có label, path_max_5d, path_min_5d.
-    feature_cols  : Danh sách feature names.
-    min_prob      : Ngưỡng signal (P >= min_prob → trade).
-    train_ratio   : Tỷ lệ data dùng train (default 0.70 = 70% đầu theo thời gian).
-    initial_equity: Vốn khởi đầu (normalized).
+    dataset         : Output của build_dataset().
+    feature_cols    : Danh sách feature names.
+    min_prob        : Ngưỡng signal.
+    train_ratio     : Tỷ lệ data train (default 0.70 = 70% đầu theo thời gian).
+    initial_equity  : Vốn khởi đầu.
     position_size_pct: % vốn mỗi trade.
-    precision_target : Target precision để đánh giá meets_target.
+    precision_target: Target precision.
+    round_trip_cost : Phí round-trip mỗi trade (Module C). 0.004 = 0.40% VN thực tế.
 
     Returns
     -------
@@ -445,13 +467,17 @@ def run_walk_forward_backtest(
     win_mask  = signals_df["label"] == 1
     loss_mask = ~win_mask
 
-    trade_return = np.where(
+    gross_return = np.where(
         win_mask,
         signals_df["path_max_5d"].clip(upper=TARGET_PCT * 2),
         signals_df["path_min_5d"].clip(lower=SL_PCT * 2),
     )
+    # Module C: trừ phí round-trip
+    net_return = gross_return - round_trip_cost
+
     signals_df = signals_df.copy()
-    signals_df["trade_return"] = trade_return
+    signals_df["gross_return"] = gross_return
+    signals_df["trade_return"] = net_return
 
     total_trades = len(signals_df)
     win_rate     = float(signals_df["label"].mean())
@@ -459,7 +485,8 @@ def run_walk_forward_backtest(
     win_returns  = signals_df.loc[win_mask,  "trade_return"]
     loss_returns = signals_df.loc[loss_mask, "trade_return"]
 
-    avg_return = float(signals_df["trade_return"].mean())
+    gross_avg  = float(gross_return.mean())
+    avg_return = float(net_return.mean())
     avg_win    = float(win_returns.mean())  if not win_returns.empty  else 0.0
     avg_loss   = float(loss_returns.mean()) if not loss_returns.empty else 0.0
 
@@ -522,15 +549,17 @@ def run_walk_forward_backtest(
     # ── Trade log ─────────────────────────────────────────────────────────────
     trades_out = signals_df[[
         "date", "ticker", "p_alpha", "confidence",
-        "label", "trade_return", "path_max_5d", "path_min_5d",
+        "label", "gross_return", "trade_return", "path_max_5d", "path_min_5d",
     ]].copy()
-    trades_out["trade_return_pct"] = (trades_out["trade_return"] * 100).round(2)
+    trades_out["gross_return_pct"] = (trades_out["gross_return"] * 100).round(2)
+    trades_out["net_return_pct"]   = (trades_out["trade_return"] * 100).round(2)
     trades_out["p_alpha"]          = trades_out["p_alpha"].round(4)
-    trades_out = trades_out.drop(columns=["trade_return"])
+    trades_out = trades_out.drop(columns=["gross_return", "trade_return"])
 
     wf_note = (
         f"Walk-forward: train {len(train_df)} rows → test {len(test_df)} rows "
         f"(split {split_date}). Không có data leakage."
+        + (f" Phí: {round_trip_cost*100:.2f}%/round-trip." if round_trip_cost > 0 else "")
     )
 
     return BacktestResult(
@@ -555,4 +584,6 @@ def run_walk_forward_backtest(
         split_date=split_date,
         train_rows=len(train_df),
         test_rows=len(test_df),
+        gross_avg_return_pct=round(gross_avg * 100, 3),
+        round_trip_cost_pct=round(round_trip_cost * 100, 3),
     )
