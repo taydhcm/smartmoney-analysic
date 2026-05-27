@@ -66,6 +66,16 @@ from .smart_money import (
     ProprietarySignal, InstitutionalFlowSignal,
     compute_institutional_flow, compute_institutional_flow_features,
 )
+from .trade_log import (
+    log_alpha_signals,
+    resolve_pending_outcomes,
+    get_track_record,
+    get_weekly_win_rate,
+    get_ticker_stats,
+    get_pending_count,
+    get_summary_stats,
+    TRADE_LOG_DB,
+)
 from analytics.wyckoff import WyckoffResult, detect_wyckoff
 
 __all__ = [

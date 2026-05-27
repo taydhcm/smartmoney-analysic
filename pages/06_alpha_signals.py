@@ -12,7 +12,10 @@ Pipeline:
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, date as _date
+
+log = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
@@ -437,6 +440,16 @@ if do_predict or "alpha_picks" in st.session_state:
                 )
                 st.session_state["alpha_picks"] = _picks
                 st.session_state["alpha_min_prob"] = min_prob
+
+                # Module B: auto-log picks vào trade_log.db
+                if _picks:
+                    try:
+                        from ml.trade_log import log_alpha_signals
+                        _logged = log_alpha_signals(_picks)
+                        if _logged > 0:
+                            log.info("Trade log: %d picks mới ghi hôm nay", _logged)
+                    except Exception as _tl_err:
+                        log.warning("Trade log error (bỏ qua): %s", _tl_err)
             except Exception as exc:
                 st.error(f"Lỗi prediction: {exc}")
                 st.stop()
@@ -1188,6 +1201,155 @@ if model_exists() and "alpha_dataset" in st.session_state:
 # SECTION 6 — Feature Importance
 # ─────────────────────────────────────────────────────────────────────────────
 st.divider()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 7 — Module B: Track Record (Trade Log SQLite)
+# ─────────────────────────────────────────────────────────────────────────────
+st.divider()
+with st.expander("📊 Track Record — Out-of-Sample (Module B)", expanded=False):
+    try:
+        from ml.trade_log import (
+            get_summary_stats, get_weekly_win_rate, get_ticker_stats,
+            get_track_record, resolve_pending_outcomes, get_pending_count,
+        )
+
+        # ── Header stats ──────────────────────────────────────────────────────
+        _tl_stats = get_summary_stats()
+        _tl_cols = st.columns(5)
+        _tl_cols[0].metric("Tổng tín hiệu đã log", _tl_stats["total"])
+        _tl_cols[1].metric("Đã resolve (WIN/LOSS)", _tl_stats["resolved"])
+        _tl_cols[2].metric("Win Rate thực tế",
+                            f"{_tl_stats['win_rate_pct']:.1f}%"
+                            if _tl_stats["resolved"] > 0 else "N/A")
+        _tl_cols[3].metric("Avg Net Return",
+                            f"{_tl_stats['avg_net_return_pct']:+.2f}%"
+                            if _tl_stats["avg_net_return_pct"] else "N/A")
+        _tl_cols[4].metric("Đang PENDING", _tl_stats["pending"])
+
+        st.caption(
+            "📌 **Track Record thực tế** — chỉ tính signal từ `predict_today()`. "
+            "WIN = chạm +5% trước -5% trong T+5. LOSS = ngược lại."
+        )
+
+        # ── Resolve pending button ────────────────────────────────────────────
+        _resolve_col, _ = st.columns([1, 3])
+        with _resolve_col:
+            _pending_n = _tl_stats["pending"]
+            if st.button(
+                f"🔄 Resolve {_pending_n} PENDING" if _pending_n > 0 else "🔄 Resolve outcomes",
+                key="tl_resolve",
+                disabled=_pending_n == 0,
+                help="Fetch giá thực từ vnstock và cập nhật WIN/LOSS cho các signal đã đến T+5",
+            ):
+                with st.spinner("Đang resolve pending outcomes..."):
+                    _n_resolved = resolve_pending_outcomes()
+                st.success(f"✅ Đã resolve {_n_resolved} signal")
+                st.rerun()
+
+        st.divider()
+
+        # ── Weekly win rate chart ─────────────────────────────────────────────
+        _wwr_df = get_weekly_win_rate()
+        if not _wwr_df.empty and _wwr_df["total_trades"].sum() > 0:
+            import plotly.graph_objects as _go_tl
+            _wwr_df = _wwr_df[_wwr_df["total_trades"] > 0].sort_values("week_start")
+            _fig_wr = _go_tl.Figure()
+            _fig_wr.add_trace(_go_tl.Bar(
+                x=_wwr_df["week_start"],
+                y=_wwr_df["total_trades"],
+                name="Số lệnh",
+                marker_color="#4A90D9",
+                opacity=0.5,
+                yaxis="y2",
+            ))
+            _fig_wr.add_trace(_go_tl.Scatter(
+                x=_wwr_df["week_start"],
+                y=_wwr_df["win_rate_pct"],
+                mode="lines+markers",
+                name="Win Rate (%)",
+                line=dict(color="#F5A623", width=2),
+                marker=dict(size=7),
+            ))
+            _fig_wr.add_hline(y=35, line_dash="dash", line_color="gray",
+                               annotation_text="Target 35%")
+            _fig_wr.update_layout(
+                title="Win Rate theo Tuần (OUT-OF-SAMPLE thực tế)",
+                xaxis_title="Tuần",
+                yaxis=dict(title="Win Rate (%)", range=[0, 100]),
+                yaxis2=dict(title="Số lệnh", overlaying="y", side="right"),
+                height=350,
+                legend=dict(orientation="h"),
+                hovermode="x unified",
+            )
+            st.plotly_chart(_fig_wr, use_container_width=True)
+        else:
+            st.info("Chưa đủ dữ liệu để vẽ biểu đồ win rate theo tuần. "
+                    "Bấm 'Phân tích Alpha Picks' để bắt đầu ghi signal.")
+
+        # ── By ticker stats ───────────────────────────────────────────────────
+        _tick_df = get_ticker_stats()
+        if not _tick_df.empty:
+            st.markdown("**📈 Hiệu suất theo Ticker**")
+            _tick_show = _tick_df.rename(columns={
+                "ticker":              "Mã",
+                "total_trades":        "Lệnh",
+                "wins":                "Thắng",
+                "win_rate_pct":        "Win Rate (%)",
+                "avg_net_return_pct":  "Avg Net Return (%)",
+                "avg_p_alpha":         "Avg P_alpha",
+                "last_signal_date":    "Tín hiệu gần nhất",
+            })
+            st.dataframe(
+                _tick_show,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Win Rate (%)":         st.column_config.NumberColumn(format="%.1f%%"),
+                    "Avg Net Return (%)":   st.column_config.NumberColumn(format="%+.2f%%"),
+                    "Avg P_alpha":          st.column_config.NumberColumn(format="%.3f"),
+                },
+            )
+
+        # ── Full trade log ────────────────────────────────────────────────────
+        _tl_df = get_track_record(days=90)
+        if not _tl_df.empty:
+            with st.expander(f"📋 Toàn bộ trade log ({len(_tl_df)} signals, 90 ngày)", expanded=False):
+                _tl_show = _tl_df.rename(columns={
+                    "signal_date":       "Ngày",
+                    "ticker":            "Mã",
+                    "p_alpha":           "P_alpha",
+                    "p_calibrated":      "P_cal",
+                    "pattern":           "Pattern",
+                    "confidence":        "Confidence",
+                    "entry_price":       "Giá vào",
+                    "outcome":           "Kết quả",
+                    "exit_price":        "Giá ra",
+                    "gross_return_pct":  "Gross (%)",
+                    "net_return_pct":    "Net (%)",
+                    "round_trip_cost_pct": "Phí (%)",
+                    "resolve_date":      "T+5 date",
+                })
+                _outcome_colors = {"WIN": "🟢", "LOSS": "🔴", "PENDING": "🟡", "EXPIRED": "⚫"}
+                _tl_show["Kết quả"] = _tl_show["Kết quả"].map(
+                    lambda x: f"{_outcome_colors.get(x, '')} {x}"
+                )
+                st.dataframe(
+                    _tl_show,
+                    hide_index=True,
+                    use_container_width=True,
+                    column_config={
+                        "P_alpha":    st.column_config.NumberColumn(format="%.3f"),
+                        "P_cal":      st.column_config.NumberColumn(format="%.3f"),
+                        "Giá vào":    st.column_config.NumberColumn(format="%.2f"),
+                        "Giá ra":     st.column_config.NumberColumn(format="%.2f"),
+                        "Gross (%)":  st.column_config.NumberColumn(format="%+.2f%%"),
+                        "Net (%)":    st.column_config.NumberColumn(format="%+.2f%%"),
+                    },
+                )
+
+    except Exception as _tl_ex:
+        st.warning(f"Track Record chưa khả dụng: {_tl_ex}")
+
 with st.expander("📖 Methodology & Disclaimer", expanded=False):
     st.markdown("""
     ### Cách hệ thống hoạt động

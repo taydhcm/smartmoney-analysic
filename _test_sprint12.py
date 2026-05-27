@@ -966,6 +966,132 @@ except Exception as e: fail("round_trip_cost_constant", e)
 
 
 # ══════════════════════════════════════════════════════════════
+# Section 10: Module B — Trade Log SQLite
+# ══════════════════════════════════════════════════════════════
+print("\n── Section 10: Module B — Trade Log SQLite ─────────────")
+
+# 10.1 Import module trade_log
+try:
+    from ml.trade_log import (
+        log_alpha_signals, resolve_pending_outcomes,
+        get_track_record, get_weekly_win_rate, get_ticker_stats,
+        get_pending_count, get_summary_stats, TRADE_LOG_DB,
+    )
+    ok("ml.trade_log import thành công")
+except Exception as e: fail("trade_log_import", e)
+
+# 10.2 TRADE_LOG_DB path hợp lệ
+try:
+    from ml.trade_log import TRADE_LOG_DB
+    from pathlib import Path as _Path
+    assert str(TRADE_LOG_DB).endswith("trade_log.db"), f"Unexpected path: {TRADE_LOG_DB}"
+    assert "artifacts" in str(TRADE_LOG_DB), "DB phải nằm trong ml/artifacts/"
+    ok(f"TRADE_LOG_DB path hợp lệ: {TRADE_LOG_DB.name}")
+except Exception as e: fail("trade_log_db_path", e)
+
+# 10.3 log_alpha_signals với picks trống → trả về 0
+try:
+    from ml.trade_log import log_alpha_signals
+    n = log_alpha_signals([])
+    assert n == 0, f"Expected 0, got {n}"
+    ok("log_alpha_signals([]) → 0 (empty list)")
+except Exception as e: fail("log_alpha_signals_empty", e)
+
+# 10.4 log_alpha_signals với fake picks → insert và ignore duplicate
+try:
+    import tempfile, os as _os
+    from pathlib import Path as _P
+    from datetime import date as _dt_date
+    import ml.trade_log as _tl_mod
+
+    # Dùng DB tạm để tránh ảnh hưởng production
+    _orig_db = _tl_mod.TRADE_LOG_DB
+    _tmp_dir = _P(tempfile.mkdtemp())
+    _tl_mod.TRADE_LOG_DB = _tmp_dir / "test_trade_log.db"
+    _tl_mod._ARTIFACTS_DIR = _tmp_dir
+
+    _fake_picks = [
+        {
+            "ticker": "VNM", "probability": 0.72, "p_calibrated": 0.68,
+            "pattern": "Spring", "confidence": "high",
+            "entry": {"entry_low": 79000, "entry_high": 80000},
+        },
+        {
+            "ticker": "VIC", "probability": 0.65, "p_calibrated": 0.60,
+            "pattern": "LPS", "confidence": "medium",
+            "entry": {"entry_low": 50000, "entry_high": 51000},
+        },
+    ]
+
+    from datetime import date as _dt2
+    _test_date = _dt2.today().isoformat()   # dùng today để không bị lọc cutoff
+    n1 = log_alpha_signals(_fake_picks, signal_date=_test_date)
+    assert n1 == 2, f"Lần 1 phải insert 2, got {n1}"
+
+    # Duplicate → insert 0
+    n2 = log_alpha_signals(_fake_picks, signal_date=_test_date)
+    assert n2 == 0, f"Lần 2 (duplicate) phải insert 0, got {n2}"
+
+    ok("log_alpha_signals: insert 2, duplicate ignored (0)")
+
+    # 10.5 get_track_record trả về DataFrame đúng
+    df_tr = get_track_record(days=365)
+    assert len(df_tr) == 2, f"Expected 2 rows, got {len(df_tr)}"
+    assert "ticker" in df_tr.columns
+    assert "outcome" in df_tr.columns
+    assert set(df_tr["outcome"].unique()) == {"PENDING"}
+    ok("get_track_record trả về 2 rows, outcome=PENDING")
+
+    # 10.6 get_summary_stats
+    stats = get_summary_stats()
+    assert stats["total"]   == 2
+    assert stats["pending"] == 2
+    assert stats["resolved"] == 0
+    ok("get_summary_stats: total=2, pending=2, resolved=0")
+
+    # 10.7 get_weekly_win_rate trả về DataFrame (có thể rỗng khi chưa resolve)
+    df_wwr = get_weekly_win_rate()
+    assert hasattr(df_wwr, "columns"), "get_weekly_win_rate phải trả về DataFrame"
+    ok("get_weekly_win_rate trả về DataFrame")
+
+    # 10.8 get_ticker_stats trả về DataFrame (rỗng khi chưa có WIN/LOSS)
+    df_tck = get_ticker_stats()
+    assert hasattr(df_tck, "columns"), "get_ticker_stats phải trả về DataFrame"
+    ok("get_ticker_stats trả về DataFrame")
+
+    # 10.9 entry_price được tính đúng
+    import sqlite3 as _sqlite3
+    with _sqlite3.connect(str(_tl_mod.TRADE_LOG_DB)) as _conn:
+        row = _conn.execute(
+            "SELECT entry_price FROM alpha_signals WHERE ticker='VNM'"
+        ).fetchone()
+    assert row is not None
+    assert abs(row[0] - 79500.0) < 1, f"entry_price VNM expected ~79500, got {row[0]}"
+    ok(f"entry_price midpoint tính đúng: VNM = {row[0]}")
+
+finally:
+    # Restore production DB
+    try:
+        _tl_mod.TRADE_LOG_DB    = _orig_db
+        _tl_mod._ARTIFACTS_DIR  = _P(__file__).resolve().parent / "ml" / "artifacts"
+    except Exception:
+        pass
+    ok("Teardown test DB (tmp)")
+
+# 10.10 ml.__init__ exports trade_log symbols
+try:
+    import ml as _ml_pkg
+    assert hasattr(_ml_pkg, "log_alpha_signals"),    "log_alpha_signals not exported"
+    assert hasattr(_ml_pkg, "get_track_record"),     "get_track_record not exported"
+    assert hasattr(_ml_pkg, "get_weekly_win_rate"),  "get_weekly_win_rate not exported"
+    assert hasattr(_ml_pkg, "get_ticker_stats"),     "get_ticker_stats not exported"
+    assert hasattr(_ml_pkg, "get_summary_stats"),    "get_summary_stats not exported"
+    assert hasattr(_ml_pkg, "TRADE_LOG_DB"),         "TRADE_LOG_DB not exported"
+    ok("ml.__init__ export đầy đủ trade_log symbols")
+except Exception as e: fail("trade_log_init_exports", e)
+
+
+# ══════════════════════════════════════════════════════════════
 # Summary
 # ══════════════════════════════════════════════════════════════
 total = PASS + FAIL
