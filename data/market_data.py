@@ -39,21 +39,31 @@ def get_ohlcv(ticker: str, period: str = "1m") -> pd.DataFrame:
     """
     OHLCV cho 1 mã. Trả về DataFrame với cột:
     [date, open, high, low, close, volume]
-    Rate limiter chỉ được gọi khi cache miss (tức là sẽ gọi VCI API thực sự).
+    Thử nhiều source: TCBS → VCI (fallback).
+    Lưu ý: cả hai có thể bị block từ IP nước ngoài (Streamlit Cloud).
     """
-    # Thờ́t nếu đang dùng free tier (đã check cache miss vì ta trong body @ttl_cache)
     from utils.rate_limiter import vnstock_limiter  # lazy import để tránh circular
     vnstock_limiter.acquire()
-    try:
-        from vnstock.api.quote import Quote  # type: ignore
-        start, end = _date_range(period)
-        q = Quote(symbol=ticker, source="VCI")
-        df = q.history(start=start, end=end, interval="1D")
-        df = _normalize_ohlcv(df)
-        return df.tail(PERIOD_DAYS[period]).reset_index(drop=True)
-    except Exception as exc:
-        log.warning("get_ohlcv(%s) lỗi: %s – trả về DataFrame rỗng", ticker, exc)
-        return pd.DataFrame()
+    from vnstock.api.quote import Quote  # type: ignore
+    start, end = _date_range(period)
+    # Thử TCBS trước (endpoint khác VCI, đôi khi accessible hơn từ IP ngoài VN)
+    for source in ("TCBS", "VCI"):
+        try:
+            q = Quote(symbol=ticker, source=source)
+            df = q.history(start=start, end=end, interval="1D")
+            if df is not None and not df.empty:
+                df = _normalize_ohlcv(df)
+                return df.tail(PERIOD_DAYS[period]).reset_index(drop=True)
+            log.debug("get_ohlcv(%s) source=%s trả về rỗng", ticker, source)
+        except Exception as exc:
+            log.debug("get_ohlcv(%s) source=%s lỗi: %s", ticker, source, exc)
+    log.warning(
+        "get_ohlcv(%s) lỗi: không lấy được OHLCV từ TCBS lẫn VCI – "
+        "các API môi giới VN có thể bị block từ IP nước ngoài (Streamlit Cloud). "
+        "Trả về DataFrame rỗng.",
+        ticker,
+    )
+    return pd.DataFrame()
 
 
 @ttl_cache()

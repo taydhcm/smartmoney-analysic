@@ -371,7 +371,16 @@ if do_train:
             st.stop()
 
     if dataset.empty:
-        st.error("Dataset rỗng — không thể train. Kiểm tra kết nối VCI OHLCV.")
+        st.error(
+            "**Dataset rỗng — không thể train.**\n\n"
+            "Nguyên nhân thường gặp khi chạy trên **Streamlit Cloud**:\n"
+            "- API dữ liệu VN (VCI, TCBS, VNDirect) **bị block từ IP nước ngoài** "
+            "(Streamlit Cloud chạy ở AWS US-East). Đây là giới hạn của free tier cloud.\n\n"
+            "**Giải pháp:**\n"
+            "1. Chạy **Retrain Model** trên máy local (kết nối VN) → model được lưu và "
+            "upload lên repo → Cloud dùng model đó để dự đoán.\n"
+            "2. Thêm `OHLCV_SOURCE=local_db` để train từ SQLite snapshot (cần D0.2 logger chạy ≥10 phiên)."
+        )
         st.stop()
 
     # Thống kê dataset
