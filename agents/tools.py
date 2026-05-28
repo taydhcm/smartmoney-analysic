@@ -33,6 +33,14 @@ def tool_get_foreign_room(ticker: str) -> str:
     from data.foreign_flow import get_foreign_room
     room = get_foreign_room(ticker)
     if room.get("remaining_pct") is None:
+        # Không tính được % (thiếu total shares) nhưng có thể có số cp thô từ KBS
+        shares = room.get("foreign_room_shares")
+        if shares and shares > 0:
+            shares_m = shares / 1_000_000
+            return (
+                f"[{ticker}] Foreign room còn lại: {shares_m:.1f}M cp "
+                f"(không tính được % do thiếu dữ liệu tổng CP lưu hành)."
+            )
         return f"Không có dữ liệu room ngoại cho {ticker}."
     alert = " ⚠️ GẦN ĐẦY ROOM!" if room.get("alert") else ""
     return (

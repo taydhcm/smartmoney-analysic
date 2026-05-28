@@ -78,7 +78,7 @@ Register-ScheduledTask `
     -Trigger    $trigger `
     -Settings   $settings `
     -Principal  $principal `
-    -Description "Alpha Signal D0.2: ghi foreign flow + OHLCV snapshot vao SQLite luc 15:05 moi ngay giao dich" | Out-Null
+    -Description "Alpha Signal Sprint 13: ghi foreign flow + OHLCV snapshot + Fireant buzz + CafeF/Vietstock sentiment vao SQLite luc 15:05 moi ngay giao dich" | Out-Null
 
 Write-Host ""
 Write-Host "=== Scheduled Task da duoc tao thanh cong! ===" -ForegroundColor Green

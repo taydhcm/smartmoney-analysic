@@ -1,9 +1,12 @@
 """
 ml/__init__.py
-Alpha Signal ML package — v11.0 (Sprint 12: SSI iBoard Tự Doanh + Model v6 + 38 features)
+Alpha Signal ML package — v12.0 (Sprint 13: Sentiment Integration + 43 features)
 """
 
-from .feature_engineering import FEATURE_COLS, compute_stock_features
+from .feature_engineering import (
+    FEATURE_COLS, SENTIMENT_FEATURE_COLS,
+    compute_stock_features, compute_sentiment_features,
+)
 from .model import (
     MODEL_LABEL_VERSION, CALIBRATOR_PATH,
     is_model_compatible, load_model, load_calibrator, model_exists,

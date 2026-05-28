@@ -44,6 +44,11 @@ SSI_API_KEY:     str | None = _get_secret("SSI_API_KEY") or None
 SSI_SECRET_KEY:  str | None = _get_secret("SSI_SECRET_KEY") or None
 HAS_SSI_API:     bool       = bool(SSI_API_KEY and SSI_SECRET_KEY)
 
+# ── Fireant Bearer token (Sprint 13 — restv2.fireant.vn yêu cầu xác thực) ────────
+# Lấy từ Chrome DevTools khi đăng nhập fireant.vn:
+#   Network → bất kỳ request tới restv2.fireant.vn → Header "Authorization": "Bearer <token>"
+FIREANT_TOKEN:   str | None = _get_secret("FIREANT_TOKEN") or None
+
 LLM_MODEL_GROQ:   str = _get_secret("LLM_MODEL_GROQ",   "llama-3.3-70b-versatile")
 LLM_MODEL_OPENAI: str = _get_secret("LLM_MODEL_OPENAI", "gpt-4o-mini")
 LLM_TEMPERATURE:  float = float(_get_secret("LLM_TEMPERATURE", "0.3"))

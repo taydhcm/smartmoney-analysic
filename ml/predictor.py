@@ -177,6 +177,21 @@ def predict_today(
             if feat_df.empty:
                 continue
 
+            # Sprint 13 D: Merge sentiment features at inference time
+            try:
+                from data.sentiment_logger import get_sentiment_history
+                from .feature_engineering import compute_sentiment_features, SENTIMENT_FEATURE_COLS
+                _sent_df = get_sentiment_history(ticker, days=90)
+                if _sent_df is not None and not _sent_df.empty:
+                    _sent_feat = compute_sentiment_features(ohlcv, _sent_df)
+                    feat_df["date"] = pd.to_datetime(feat_df["date"])
+                    _sent_feat["date"] = pd.to_datetime(_sent_feat["date"])
+                    feat_df = feat_df.merge(_sent_feat, on="date", how="left")
+                    for _sc in SENTIMENT_FEATURE_COLS:
+                        feat_df[_sc] = feat_df[_sc].fillna(0.0) if _sc in feat_df.columns else 0.0
+            except Exception as _sent_ex:
+                log.debug("Sentiment inference %s: %s", ticker, _sent_ex)
+
             # Row cuối = phiên gần nhất (hôm nay hoặc hôm qua)
             last = feat_df.iloc[-1]
 
@@ -221,6 +236,12 @@ def predict_today(
             prop_net  = float(last.get("proprietary_net_pct",           0.0) or 0.0)
             prop_tr   = float(last.get("prop_trend",                    0.0) or 0.0)
             comb_inst = float(last.get("combined_institutional_score",  0.0) or 0.0)
+            # Sprint 13 D: Sentiment features for display
+            sent_buzz  = float(last.get("fireant_buzz_zscore",         0.0) or 0.0)
+            sent_neg   = float(last.get("sent_extreme_negative_hold",  0.0) or 0.0)
+            sent_pos   = float(last.get("sent_extreme_positive",       0.0) or 0.0)
+            sent_neut  = float(last.get("sent_neutral_momentum",       0.0) or 0.0)
+            sent_div   = float(last.get("sent_vs_price_divergence",    0.0) or 0.0)
 
             # Loại overbought (RSI > threshold)
             if rsi > max_rsi:
@@ -271,6 +292,14 @@ def predict_today(
                     "proprietary_net_pct":           round(prop_net,  4),
                     "prop_trend":                    round(prop_tr,   4),
                     "combined_institutional_score":  round(comb_inst, 4),
+                },
+                # Sprint 13 D: Sentiment features
+                "sentiment": {
+                    "fireant_buzz_zscore":        round(sent_buzz, 3),
+                    "sent_extreme_negative_hold": round(sent_neg,  3),
+                    "sent_extreme_positive":      round(sent_pos,  3),
+                    "sent_neutral_momentum":      round(sent_neut, 3),
+                    "sent_vs_price_divergence":   round(sent_div,  3),
                 },
                 "regime":             regime_dict,                # D3.1 context
                 "_rs_info":           rs_info,                    # internal, removed below

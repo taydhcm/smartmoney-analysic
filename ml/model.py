@@ -42,7 +42,7 @@ CALIBRATOR_PATH = _ARTIFACTS_DIR / "alpha_calibrator.pkl"  # Isotonic calibrator
 # ── Model versioning ────────────────────────────────────────────────────────────
 # Tăng khi thay đổi: label definition, feature list, hoặc training schema.
 # Artifact có version khác → bị reject tự động trong load_model().
-MODEL_LABEL_VERSION = "v6_calibrated"  # v6.0: +3 Proprietary flow features (38 total) + SSI iBoard
+MODEL_LABEL_VERSION = "v7_sentiment"  # v7.0: +5 Sentiment features (43 total) — Sprint 13
 
 
 # ── Model factory ──────────────────────────────────────────────────────────────

@@ -30,6 +30,20 @@ market_breadth
 logger_meta
     key           TEXT  PRIMARY KEY
     value         TEXT
+
+sentiment_snapshots  (Sprint 13: Sentiment Integration)
+    session_date         TEXT  YYYY-MM-DD
+    ticker               TEXT
+    fireant_buzz_count   INTEGER  -- số bài đăng Fireant trong ngày (raw count, không parse NLP)
+    fireant_buzz_likes   INTEGER  -- tổng likes Fireant (để weight sau này)
+    cafef_sent_score     REAL     -- [-1, +1] từ CafeF RSS + keyword/underthesea
+    vietstock_sent_score REAL     -- [-1, +1] từ Vietstock RSS
+    combined_sent_score  REAL     -- weighted average của cafef + vietstock
+    article_count        INTEGER  -- số bài news được phân tích
+    bullish_count        INTEGER  -- số bài có từ khóa tích cực
+    bearish_count        INTEGER  -- số bài có từ khóa tiêu cực
+    created_at           TEXT
+    PRIMARY KEY (session_date, ticker)
 """
 
 from __future__ import annotations
@@ -79,6 +93,35 @@ CREATE TABLE IF NOT EXISTS logger_meta (
 
 CREATE INDEX IF NOT EXISTS idx_snapshots_ticker
     ON snapshots (ticker, session_date);
+
+CREATE TABLE IF NOT EXISTS sentiment_snapshots (
+    session_date         TEXT    NOT NULL,
+    ticker               TEXT    NOT NULL,
+    fireant_buzz_count   INTEGER NOT NULL DEFAULT 0,
+    fireant_buzz_likes   INTEGER NOT NULL DEFAULT 0,
+    cafef_sent_score     REAL    NOT NULL DEFAULT 0.0,
+    vietstock_sent_score REAL    NOT NULL DEFAULT 0.0,
+    combined_sent_score  REAL    NOT NULL DEFAULT 0.0,
+    article_count        INTEGER NOT NULL DEFAULT 0,
+    bullish_count        INTEGER NOT NULL DEFAULT 0,
+    bearish_count        INTEGER NOT NULL DEFAULT 0,
+    created_at           TEXT    NOT NULL,
+    PRIMARY KEY (session_date, ticker)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sentiment_ticker
+    ON sentiment_snapshots (ticker, session_date);
+
+CREATE TABLE IF NOT EXISTS sector_tu_doan_daily (
+    session_date  TEXT NOT NULL,
+    sector        TEXT NOT NULL,
+    buy_k_shares  REAL NOT NULL DEFAULT 0,
+    sell_k_shares REAL NOT NULL DEFAULT 0,
+    net_k_shares  REAL NOT NULL DEFAULT 0,
+    ticker_count  INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL,
+    PRIMARY KEY (session_date, sector)
+);
 """
 
 
@@ -89,9 +132,61 @@ def ensure_db() -> Path:
         con.executescript(_DDL)
         # Sprint 12: migrate existing DB — add proprietary columns nếu chưa có
         _migrate_add_proprietary_columns(con)
+        # Sprint 13: migrate — add sentiment_snapshots table nếu chưa có
+        _migrate_add_sentiment_table(con)
+        # Sprint 14: migrate — add sector_tu_doan_daily table nếu chưa có
+        _migrate_add_sector_tu_doan_table(con)
         con.commit()
     log.debug("DB ready: %s", DB_PATH)
     return DB_PATH
+
+
+def _migrate_add_sentiment_table(con: sqlite3.Connection) -> None:
+    """Idempotent migration Sprint 13: tạo bảng sentiment_snapshots nếu chưa có."""
+    tables = {row[0] for row in con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    )}
+    if "sentiment_snapshots" not in tables:
+        con.executescript("""
+            CREATE TABLE IF NOT EXISTS sentiment_snapshots (
+                session_date         TEXT    NOT NULL,
+                ticker               TEXT    NOT NULL,
+                fireant_buzz_count   INTEGER NOT NULL DEFAULT 0,
+                fireant_buzz_likes   INTEGER NOT NULL DEFAULT 0,
+                cafef_sent_score     REAL    NOT NULL DEFAULT 0.0,
+                vietstock_sent_score REAL    NOT NULL DEFAULT 0.0,
+                combined_sent_score  REAL    NOT NULL DEFAULT 0.0,
+                article_count        INTEGER NOT NULL DEFAULT 0,
+                bullish_count        INTEGER NOT NULL DEFAULT 0,
+                bearish_count        INTEGER NOT NULL DEFAULT 0,
+                created_at           TEXT    NOT NULL,
+                PRIMARY KEY (session_date, ticker)
+            );
+            CREATE INDEX IF NOT EXISTS idx_sentiment_ticker
+                ON sentiment_snapshots (ticker, session_date);
+        """)
+        log.info("DB migration Sprint 13: created table sentiment_snapshots")
+
+
+def _migrate_add_sector_tu_doan_table(con: sqlite3.Connection) -> None:
+    """Idempotent migration Sprint 14: tạo bảng sector_tu_doan_daily nếu chưa có."""
+    tables = {row[0] for row in con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    )}
+    if "sector_tu_doan_daily" not in tables:
+        con.executescript("""
+            CREATE TABLE IF NOT EXISTS sector_tu_doan_daily (
+                session_date  TEXT    NOT NULL,
+                sector        TEXT    NOT NULL,
+                buy_k_shares  REAL    NOT NULL DEFAULT 0,
+                sell_k_shares REAL    NOT NULL DEFAULT 0,
+                net_k_shares  REAL    NOT NULL DEFAULT 0,
+                ticker_count  INTEGER NOT NULL DEFAULT 0,
+                created_at    TEXT    NOT NULL,
+                PRIMARY KEY (session_date, sector)
+            );
+        """)
+        log.info("DB migration Sprint 14: created table sector_tu_doan_daily")
 
 
 def _migrate_add_proprietary_columns(con: sqlite3.Connection) -> None:
@@ -344,3 +439,61 @@ def get_top_movers_from_db(
         "foreign":      {"buy": f_buy,  "sell": f_sell},
         "proprietary":  {"buy": p_buy,  "sell": p_sell},
     }
+
+
+# ── Sector Tu Doan Daily ───────────────────────────────────────────────────────
+
+def upsert_sector_tu_doan(
+    session_date: str,
+    sector: str,
+    buy_k_shares: float,
+    sell_k_shares: float,
+    net_k_shares: float,
+    ticker_count: int,
+) -> None:
+    """
+    Lưu dữ liệu tự doanh tổng hợp theo ngành cho 1 phiên.
+    Idempotent (INSERT OR REPLACE).
+    Đơn vị: nghìn cổ phiếu (k_shares).
+    """
+    now = datetime.now().isoformat()
+    with get_connection() as con:
+        con.execute(
+            """
+            INSERT OR REPLACE INTO sector_tu_doan_daily
+                (session_date, sector, buy_k_shares, sell_k_shares,
+                 net_k_shares, ticker_count, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (session_date, sector, buy_k_shares, sell_k_shares,
+             net_k_shares, ticker_count, now),
+        )
+
+
+def load_sector_tu_doan_5d(sector: str, last_n: int = 5) -> "pd.DataFrame":  # type: ignore[name-defined]
+    """
+    Load N phiên gần nhất dữ liệu tự doanh ngành từ DB.
+    Columns: session_date, sector, buy_k_shares, sell_k_shares, net_k_shares, ticker_count.
+    Trả về DataFrame rỗng nếu chưa có dữ liệu.
+    """
+    import pandas as pd
+    with get_connection() as con:
+        rows = con.execute(
+            """
+            SELECT session_date, sector, buy_k_shares, sell_k_shares,
+                   net_k_shares, ticker_count
+            FROM   sector_tu_doan_daily
+            WHERE  sector = ?
+            ORDER  BY session_date DESC
+            LIMIT  ?
+            """,
+            (sector, last_n),
+        ).fetchall()
+    if not rows:
+        return pd.DataFrame(columns=[
+            "session_date", "sector", "buy_k_shares",
+            "sell_k_shares", "net_k_shares", "ticker_count",
+        ])
+    df = pd.DataFrame([dict(r) for r in rows])
+    return df.sort_values("session_date").reset_index(drop=True)
+

@@ -82,6 +82,27 @@ def main() -> int:
         else:
             log.info(">>> Can %d phien nua de bat S4 features.", status["sessions_needed"])
 
+        # ── Sprint 13: Log sentiment snapshot cho toàn bộ VN30 ───────────────
+        log.info("--- Sprint 13: Logging sentiment snapshots ---")
+        try:
+            from data.sentiment_logger import log_sentiment_batch
+            from config.constants import VN30_TICKERS
+
+            sent_results = log_sentiment_batch(
+                tickers=list(VN30_TICKERS),
+                session_date=result["session_date"],
+                cafef_days=1,
+                progress_callback=_progress,
+            )
+            logged_sent = sum(1 for r in sent_results if r.get("article_count", 0) > 0 or r.get("fireant_buzz_count", 0) > 0)
+            log.info(
+                "Sentiment logged: %d/%d tickers có data (buzz hoặc articles)",
+                logged_sent, len(sent_results),
+            )
+        except Exception as sent_exc:
+            # Sentiment log lỗi KHÔNG làm fail toàn bộ job
+            log.warning("Sentiment logging lỗi (non-fatal): %s", sent_exc)
+
         log.info("=== D0.2 Daily Snapshot Job DONE ===")
         return 0
 

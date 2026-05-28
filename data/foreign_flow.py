@@ -198,15 +198,12 @@ _BANK_TICKERS = frozenset({
 @ttl_cache(ttl=3600)  # total shares thay đổi ít → cache 1 giờ
 def _get_total_shares(ticker: str) -> float:
     """
-    Lấy tổng cổ phiếu lưu hành từ vnstock Company overview (TCBS).
+    Lấy tổng cổ phiếu lưu hành từ vnstock Company overview.
+    Thử TCBS trước, fallback sang VCI nếu TCBS trả rỗng.
     Trả về 0.0 nếu không lấy được.
     TCBS trả về outstanding_share theo đơn vị triệu cp → ×1_000_000.
     """
-    try:
-        from vnstock.api.company import Company  # type: ignore
-        df = Company(symbol=ticker, source="TCBS").overview()
-        if df.empty:
-            return 0.0
+    def _parse_overview(df: "pd.DataFrame") -> float:
         col = next(
             (c for c in df.columns if "outstanding" in c.lower() or "issue" in c.lower()),
             None,
@@ -218,9 +215,66 @@ def _get_total_shares(ticker: str) -> float:
             return 0.0
         # TCBS trả về triệu cp (ví dụ ACB = 4400 → 4,400,000,000 cp)
         return val * 1_000_000 if val < 500_000 else val
+
+    from vnstock.api.company import Company  # type: ignore
+
+    # --- TCBS (primary) ---
+    try:
+        df = Company(symbol=ticker, source="TCBS").overview()
+        if not df.empty:
+            val = _parse_overview(df)
+            if val > 0:
+                return val
     except Exception as exc:
-        log.debug("_get_total_shares(%s): %s", ticker, exc)
-        return 0.0
+        log.debug("_get_total_shares(%s) TCBS: %s", ticker, exc)
+
+    # --- VCI (fallback) ---
+    try:
+        df = Company(symbol=ticker, source="VCI").overview()
+        if not df.empty:
+            val = _parse_overview(df)
+            if val > 0:
+                log.debug("_get_total_shares(%s): dùng VCI fallback = %s", ticker, val)
+                return val
+    except Exception as exc:
+        log.debug("_get_total_shares(%s) VCI: %s", ticker, exc)
+
+    # --- Listing API (fallback cuối: lấy listed_share từ sàn) ---
+    try:
+        from vnstock.api.listing import Listing  # type: ignore
+        for _src in ("TCBS", "VCI"):
+            try:
+                lst_df = Listing(source=_src).symbols_by_exchange()
+                if lst_df.empty:
+                    continue
+                # Lọc ticker
+                sym_col = next(
+                    (c for c in lst_df.columns if c.lower() in ("symbol", "ticker", "code")),
+                    None,
+                )
+                if sym_col is None:
+                    continue
+                row = lst_df[lst_df[sym_col].str.upper() == ticker.upper()]
+                if row.empty:
+                    continue
+                share_col = next(
+                    (c for c in row.columns
+                     if any(k in c.lower() for k in ("outstanding", "issue", "listed", "share"))),
+                    None,
+                )
+                if share_col is None:
+                    continue
+                val = float(pd.to_numeric(row[share_col].iloc[0], errors="coerce") or 0)
+                if val > 0:
+                    val = val * 1_000_000 if val < 500_000 else val
+                    log.info("_get_total_shares(%s): Listing/%s fallback = %s", ticker, _src, val)
+                    return val
+            except Exception:
+                continue
+    except Exception as exc:
+        log.debug("_get_total_shares(%s) Listing: %s", ticker, exc)
+
+    return 0.0
 
 
 @ttl_cache()

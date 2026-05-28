@@ -37,8 +37,17 @@ if not ticker:
 st.markdown(f"## 📊 {ticker}")
 
 # ── Load data ─────────────────────────────────────────────────────────────────
+from config.constants import PERIOD_DAYS as _PERIOD_DAYS
+
 with st.spinner(f"Đang tải dữ liệu {ticker}..."):
-    ohlcv   = enrich_with_volume_indicators(get_ohlcv(ticker, period))
+    # Luôn lấy ≥ 30 phiên để MFI(14) và RelVol(20) có đủ lookback để tính chỉ báo.
+    # Nếu period đã chọn ngắn hơn 30 phiên thì fetch "3m" (66 phiên) cho indicator.
+    _ind_period = period if _PERIOD_DAYS.get(period, 5) >= 30 else "3m"
+    ohlcv_full  = enrich_with_volume_indicators(get_ohlcv(ticker, _ind_period))
+    # Trim về đúng period đã chọn CHỈ để hiển thị biểu đồ nến
+    _display_n  = _PERIOD_DAYS.get(period, 5)
+    ohlcv = ohlcv_full.tail(_display_n).reset_index(drop=True) if not ohlcv_full.empty else ohlcv_full
+
     ff_df   = get_foreign_flow(ticker, "1w")   # luôn lấy 1 tuần cho foreign flow
     td_df   = get_tu_doan_flow(ticker, "1w")
     room    = get_foreign_room(ticker)
@@ -52,21 +61,23 @@ f_net    = ff_df["net_val"].sum()   if (not ff_df.empty and "net_val" in ff_df.c
 if not td_df.empty and "net_val" in td_df.columns and td_df["net_val"].sum() != 0:
     p_net = td_df["net_val"].sum()
 elif not td_df.empty and "net_vol" in td_df.columns:
-    close_px = float(ohlcv["close"].iloc[-1]) if (not ohlcv.empty and "close" in ohlcv.columns) else 0
+    close_px = float(ohlcv_full["close"].iloc[-1]) if (not ohlcv_full.empty and "close" in ohlcv_full.columns) else 0
     # VCI OHLCV trả về giá theo nghìn VND → ×1000 để đổi ra VND trước khi nhân vol
     p_net = td_df["net_vol"].sum() * close_px * 1_000
 else:
     p_net = 0
-avg_val  = ohlcv["volume"].mean() * ohlcv["close"].mean() if not ohlcv.empty else 1e9
-rv_mean  = ohlcv["rel_vol"].mean()  if (not ohlcv.empty and "rel_vol" in ohlcv.columns) else 1.0
-mfi_last = float(ohlcv["mfi"].iloc[-1]) if (not ohlcv.empty and "mfi" in ohlcv.columns) else 50.0
+# avg_val: dùng ohlcv_full để có trung bình ổn định hơn
+avg_val  = ohlcv_full["volume"].mean() * ohlcv_full["close"].mean() if not ohlcv_full.empty else 1e9
+# rv_mean, mfi_last: bắt buộc dùng ohlcv_full (cần ≥20 / ≥14 phiên)
+rv_mean  = ohlcv_full["rel_vol"].mean()  if (not ohlcv_full.empty and "rel_vol" in ohlcv_full.columns) else 1.0
+mfi_last = float(ohlcv_full["mfi"].iloc[-1]) if (not ohlcv_full.empty and "mfi" in ohlcv_full.columns) else 50.0
 
 import numpy as np
 obv_trend = 0.0
-if not ohlcv.empty and "obv" in ohlcv.columns and ohlcv["obv"].iloc[0] != 0:
-    obv_trend = (ohlcv["obv"].iloc[-1] - ohlcv["obv"].iloc[0]) / abs(ohlcv["obv"].iloc[0])
+if not ohlcv_full.empty and "obv" in ohlcv_full.columns and ohlcv_full["obv"].iloc[0] != 0:
+    obv_trend = (ohlcv_full["obv"].iloc[-1] - ohlcv_full["obv"].iloc[0]) / abs(ohlcv_full["obv"].iloc[0])
 
-acc_phase = detect_accumulation_phase(ohlcv)
+acc_phase = detect_accumulation_phase(ohlcv_full)
 score_result = calculate_smart_money_score(
     ticker=ticker,
     foreign_net_val=f_net, tu_doan_net_val=p_net,
@@ -101,7 +112,7 @@ with col_metrics:
     elif room_shares:
         st.info(f"🚪 Foreign room còn lại: **{room_shares/1_000_000:.1f}M cp**")
 
-    acc_summary = get_accumulation_summary(ticker, ohlcv)
+    acc_summary = get_accumulation_summary(ticker, ohlcv_full)
     st.info(f"🔍 {acc_summary}")
 
 # ── Row 2: Candlestick ────────────────────────────────────────────────────────

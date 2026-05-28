@@ -12,11 +12,12 @@ import pandas as pd
 
 from config.constants import VN30_TICKERS
 from data.market_data import get_ohlcv, get_index_data
-from .feature_engineering import compute_stock_features, FEATURE_COLS
+from .feature_engineering import compute_stock_features, compute_sentiment_features, FEATURE_COLS, SENTIMENT_FEATURE_COLS
 
 log = logging.getLogger(__name__)
 
 # Cột output của dataset — v2.0: thêm M2 path-dependent label columns
+# v3.0 (Sprint 13): thêm 5 SENTIMENT_FEATURE_COLS (43 features tổng cộng)
 DATASET_COLS = (
     ["ticker", "date"]
     + FEATURE_COLS
@@ -74,6 +75,31 @@ def build_dataset(
             feat_df = compute_stock_features(ohlcv, vn30_df, sm_features=sm_feat)
             if feat_df.empty:
                 continue
+
+            # ── Sprint 13: Merge Sentiment features —————————————————————
+            # Đọc lịch sử từ SQLite sentiment_snapshots
+            # Graceful degradation: nếu không có data → tất cả sentiment features = 0.0
+            try:
+                from data.sentiment_logger import get_sentiment_history
+                _period_days = {
+                    "3m": 90, "6m": 180, "12m": 365,
+                }.get(period, 180)
+                sent_df = get_sentiment_history(ticker, days=_period_days)
+            except Exception as _sent_exc:
+                log.debug("get_sentiment_history(%s) lỗi: %s – dùng 0.0", ticker, _sent_exc)
+                sent_df = None
+
+            sent_feat = compute_sentiment_features(ohlcv, sent_df)
+            # Merge theo date — left join giữ đủ hàng feat_df
+            feat_df["date"] = pd.to_datetime(feat_df["date"])
+            sent_feat["date"] = pd.to_datetime(sent_feat["date"])
+            feat_df = feat_df.merge(sent_feat, on="date", how="left")
+            # Fill NaN sentiment features = 0.0 (graceful degradation)
+            for _sc in SENTIMENT_FEATURE_COLS:
+                if _sc in feat_df.columns:
+                    feat_df[_sc] = feat_df[_sc].fillna(0.0)
+                else:
+                    feat_df[_sc] = 0.0
 
             # Chỉ giữ rows có label rõ ràng (không phải NA)
             labeled = feat_df.dropna(subset=["label"]).copy()

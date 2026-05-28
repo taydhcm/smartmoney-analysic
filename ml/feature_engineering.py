@@ -21,6 +21,18 @@ log = get_logger(__name__)
 # v5.0: Thêm 5 Wyckoff VSA features từ S1 engine v2.0 (Sprint 5) — accumulation_score nay dùng wyckoff_score
 # v6.0: Thêm 3 Wyckoff derived features (Sprint 6) — wyckoff_phase_score, phase_duration_norm, vol_profile_score (35 total)
 # v7.0: Thêm 3 Proprietary flow features (Sprint 12) — proprietary_net_pct, prop_trend, combined_institutional_score (38 total)
+# v8.0: Thêm 5 Sentiment features (Sprint 13) — fireant_buzz_zscore, sent_extreme_negative_hold,
+#        sent_extreme_positive, sent_neutral_momentum, sent_vs_price_divergence (43 total)
+
+# Sprint 13: Tên riêng để dataset_builder dễ check coverage
+SENTIMENT_FEATURE_COLS: list[str] = [
+    "fireant_buzz_zscore",         # Z-score số bài Fireant (attention proxy, rolling 20)
+    "sent_extreme_negative_hold",  # Sentiment cực âm + giá không giảm → SM đỡ giá ★★★★
+    "sent_extreme_positive",       # Sentiment cực dương → contrarian signal ★★★
+    "sent_neutral_momentum",       # Sentiment trung tính + price momentum → sóng bền ★★★
+    "sent_vs_price_divergence",    # Divergence âm/giá ngược chiều → signal mạnh nhất ★★★★★
+]
+
 FEATURE_COLS: list[str] = [
     # Return
     "return_1d",
@@ -75,6 +87,9 @@ FEATURE_COLS: list[str] = [
     "proprietary_net_pct",            # TB 5 phiên: prop net / total flow [-1, +1]
     "prop_trend",                     # Slope of prop net pct [-1, +1]
     "combined_institutional_score",   # 0.50*foreign + 0.35*prop_5d + 0.15*prop_trend [-1, +1]
+    # Sprint 13: Sentiment features (v8.0) — 5 thêm để đạt 43 features
+    # Giá trị = 0.0 khi không có data SQLite (graceful degradation)
+    *SENTIMENT_FEATURE_COLS,
 ]
 
 
@@ -194,6 +209,133 @@ def _rolling_wyckoff(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
                 "vol_profile_score":   _VOL_PROFILE_SCORE.get(wr.volume_profile, 0.50),
             })
     return pd.DataFrame(rows, index=df.index)
+
+
+# ── Sprint 13: Sentiment Feature Builder ──────────────────────────────────────
+
+def compute_sentiment_features(
+    ohlcv_df: pd.DataFrame,
+    sent_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Tính 5 sentiment features từ lịch sử SQLite sentiment_snapshots.
+
+    Không có look-ahead bias:
+      - Tất cả rolling window nhìn về quá khứ (rolling(n) mặc định)
+      - pct_change(k) = giá k phiên TRƯỚC đó, không phải tương lai
+      - Sentiment ngày T chỉ dùng data ≤ T
+
+    Parameters
+    ----------
+    ohlcv_df : DataFrame OHLCV với cột 'date' và 'close' (đã sort ASC).
+    sent_df  : Output của get_sentiment_history() — cột 'session_date',
+               'fireant_buzz_count', 'combined_sent_score'.
+               Có thể rỗng (→ tất cả features = 0.0).
+
+    Returns
+    -------
+    DataFrame với cột: date + SENTIMENT_FEATURE_COLS (5 features).
+    Luôn trả về đủ hàng khớp ohlcv_df, NaN được fill 0.0.
+
+    Signals và cơ chế:
+      fireant_buzz_zscore        - attention proxy: buzz đột biến → retail chú ý
+      sent_extreme_negative_hold - SM đỡ giá: sentiment < -0.4 nhưng giá không giảm
+      sent_extreme_positive      - contrarian: sentiment > 0.5 → sắp đảo chiều
+      sent_neutral_momentum      - sóng bền: không FOMO + giá đang tăng
+      sent_vs_price_divergence   - signal mạnh nhất: giá/sent ngược chiều → SM hoạt động
+    """
+    # Tạo output khung với đúng ngày từ ohlcv_df
+    out = pd.DataFrame({"date": pd.to_datetime(ohlcv_df["date"])}).reset_index(drop=True)
+
+    # Nếu không có sentiment data → trả về toàn 0.0 (graceful degradation)
+    if sent_df is None or sent_df.empty:
+        for col in SENTIMENT_FEATURE_COLS:
+            out[col] = 0.0
+        return out
+
+    # Normalize date column từ sent_df
+    sent = sent_df.copy()
+    if "session_date" in sent.columns:
+        sent = sent.rename(columns={"session_date": "date"})
+    sent["date"] = pd.to_datetime(sent["date"])
+
+    # Merge sentiment vào timeline OHLCV (left join để giữ đủ hàng OHLCV)
+    merged = out.merge(
+        sent[["date", "fireant_buzz_count", "combined_sent_score"]],
+        on="date",
+        how="left",
+    )
+    # Forward-fill ngày nghỉ (T+0 lấy từ ngày giao dịch trước), sau đó fill 0
+    merged["fireant_buzz_count"]  = merged["fireant_buzz_count"].ffill().fillna(0.0)
+    merged["combined_sent_score"] = merged["combined_sent_score"].ffill().fillna(0.0)
+
+    buzz = merged["fireant_buzz_count"].astype(float)
+    sent_score = merged["combined_sent_score"].astype(float)
+
+    # Lấy close price từ ohlcv_df (đảm bảo index đồng bộ)
+    close = ohlcv_df["close"].reset_index(drop=True).astype(float)
+
+    # ── 1. Fireant Buzz Z-score (attention proxy, rolling 20 phiên) ────────────
+    # Z-score dương → buzz đột biến → retail đang chú ý (có thể cả 2 chiều)
+    buzz_mean = buzz.rolling(20, min_periods=5).mean()
+    buzz_std  = buzz.rolling(20, min_periods=5).std().clip(lower=1.0)
+    buzz_zscore = ((buzz - buzz_mean) / buzz_std).clip(-3.0, 3.0).fillna(0.0)
+    out["fireant_buzz_zscore"] = buzz_zscore.values
+
+    # ── 2. Sentiment rolling averages (no look-ahead) ───────────────────────────
+    sent_3d = sent_score.rolling(3, min_periods=1).mean()
+    sent_5d = sent_score.rolling(5, min_periods=1).mean()
+
+    # ── 3. Price returns (PAST returns — không look-ahead) ─────────────────────
+    ret_3d = close.pct_change(3).fillna(0.0)
+    ret_5d = close.pct_change(5).fillna(0.0)
+
+    # ── 4. Sentiment cực âm + giá không giảm → Smart Money đỡ giá ★★★★ ────────
+    # Điều kiện: sentiment trung bình 3 phiên < -0.4 VÀ return 3 phiên > -1%
+    # Ngưỡng -0.4 tương đương ~70% bài viết là bearish keywords
+    out["sent_extreme_negative_hold"] = (
+        ((sent_3d < -0.4) & (ret_3d > -0.01))
+        .astype(float)
+        .fillna(0.0)
+        .values
+    )
+
+    # ── 5. Sentiment cực dương → Contrarian (sắp đảo chiều) ★★★ ───────────────
+    # Điều kiện: sentiment 5 phiên > 0.5 → retail FOMO quá mức → cảnh báo đỉnh
+    out["sent_extreme_positive"] = (
+        (sent_5d > 0.5)
+        .astype(float)
+        .fillna(0.0)
+        .values
+    )
+
+    # ── 6. Sentiment trung tính + price momentum → Sóng bền ★★★ ────────────────
+    # Điều kiện: |sentiment 3 phiên| < 0.15 (neutral) VÀ return 3 phiên > 1%
+    # Ý nghĩa: giá tăng khi không có FOMO → dòng tiền thực, không phải tin đồn
+    out["sent_neutral_momentum"] = (
+        ((sent_3d.abs() < 0.15) & (ret_3d > 0.01))
+        .astype(float)
+        .fillna(0.0)
+        .values
+    )
+
+    # ── 7. Divergence: chiều giá vs chiều sentiment ngược nhau ★★★★★ ───────────
+    # Điều kiện: sign(ret_5d) != sign(sent_5d) → SM hoạt động ngược retail
+    # Đây là signal mạnh nhất: negative news + institutional buying
+    # Xử lý edge case: cả 2 gần 0 → không phải divergence thực
+    price_sign = np.sign(ret_5d.values)
+    sent_sign  = np.sign(sent_5d.values)
+    # Divergence chỉ tính khi cả giá và sentiment đủ mạnh (tránh noise khi = 0)
+    price_significant = np.abs(ret_5d.values) > 0.005      # giá thay đổi > 0.5%
+    sent_significant  = np.abs(sent_5d.values) > 0.05      # sentiment rõ ràng
+    divergence = (
+        (price_sign != sent_sign)
+        & price_significant
+        & sent_significant
+    ).astype(float)
+    out["sent_vs_price_divergence"] = divergence
+
+    return out[["date"] + SENTIMENT_FEATURE_COLS]
 
 
 # ── Main feature builder ───────────────────────────────────────────────────────

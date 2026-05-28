@@ -51,25 +51,29 @@ def get_tu_doan_flow(ticker: str, period: str = "1w") -> pd.DataFrame:
     except Exception as exc:
         log.info("get_tu_doan_flow(%s): %s", ticker, exc)
 
-    # Fallback: SSI FiinMarket iBoard (batch toàn sàn)
+    # Fallback: SSI FiinMarket iBoard (batch toàn sàn — VNINDEX rồi VN30)
     try:
         from analytics.ssi_iboard import get_proprietary_batch
-        batch = get_proprietary_batch("VNINDEX")
-        if batch and ticker in batch:
-            entry = batch[ticker]
+        entry = None
+        for _group in ("VNINDEX", "VN30"):
+            batch = get_proprietary_batch(_group)
+            if batch and ticker in batch:
+                entry = batch[ticker]
+                break
+        if entry is not None:
             net_vol  = entry.get("proprietary_net", 0)
             buy_vol  = entry.get("proprietary_buy", 0)
             sell_vol = entry.get("proprietary_sell", 0)
             date_str = entry.get("date", "")
-            if net_vol != 0:
-                log.info("get_tu_doan_flow(%s): SSI iBoard fallback, net_vol=%s", ticker, net_vol)
-                return pd.DataFrame([{
-                    "date":     date_str,
-                    "buy_vol":  buy_vol,
-                    "sell_vol": sell_vol,
-                    "net_vol":  net_vol,
-                    "net_val":  0,   # chưa có giá quy đổi sang VND
-                }])
+            # Trả về ngay cả khi net_vol=0 (ticker tồn tại trong batch = có giao dịch nhưng cân bằng)
+            log.info("get_tu_doan_flow(%s): SSI iBoard, net_vol=%s", ticker, net_vol)
+            return pd.DataFrame([{
+                "date":     date_str,
+                "buy_vol":  buy_vol,
+                "sell_vol": sell_vol,
+                "net_vol":  net_vol,
+                "net_val":  0,   # chưa có giá quy đổi sang VND
+            }])
     except Exception as exc:
         log.info("get_tu_doan_flow(%s) SSI fallback lỗi: %s", ticker, exc)
 
@@ -132,8 +136,8 @@ def summarize_tu_doan(ticker: str, period: str = "1w") -> str:
     df = get_tu_doan_flow(ticker, period)
     if df.empty:
         return (
-            f"[{ticker}] Tự doanh: Chưa có dữ liệu. "
-            f"Sẽ khả dụng khi kích hoạt SSI Fast Connect."
+            f"[{ticker}] Tự doanh: Không ghi nhận hoạt động tự doanh trong phiên hôm nay "
+            f"(FiinMarket iBoard không có giao dịch nào cho {ticker})."
         )
     net_vol  = df["net_vol"].sum()  if "net_vol"  in df.columns else 0
     net_val  = df["net_val"].sum()  if "net_val"  in df.columns else 0

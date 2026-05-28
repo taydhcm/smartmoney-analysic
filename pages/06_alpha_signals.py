@@ -25,6 +25,7 @@ import streamlit as st
 
 from config.constants import VN30_TICKERS, SECTOR_MAP
 from ml.dataset_builder import build_dataset
+from ml.feature_engineering import FEATURE_COLS
 from ml.model import MODEL_LABEL_VERSION, META_PATH, MODEL_PATH, is_model_compatible, model_exists, train_model
 from ml.backtest import run_backtest, run_walk_forward_backtest
 from ml.predictor import get_current_regime, get_feature_importance, predict_all, predict_today
@@ -887,6 +888,46 @@ if do_predict or "alpha_picks" in st.session_state:
                     else:
                         st.info(f"⚪ Dòng tiền ngoại **trung tính** — {_sm_sessions} phiên data")
 
+                # ── Sprint 13 D: Sentiment Features card ─────────────────────
+                _sent = pick.get("sentiment") or {}
+                st.markdown("---")
+                st.markdown("**🧠 Sentiment Features (Sprint 13)**")
+                _buzz_z  = _sent.get("fireant_buzz_zscore", 0.0)
+                _any_sig = any(abs(v) > 0.01 for v in _sent.values())
+                if not _any_sig:
+                    st.caption("⏳ Chưa có sentiment data. Chạy: `python scripts/backfill_sentiment.py --days 90`")
+                else:
+                    _sv_cols = st.columns(5)
+                    _sv_cols[0].metric(
+                        "Buzz Z-score",
+                        f"{_buzz_z:+.2f}",
+                        delta="⬆️ cao" if _buzz_z > 1 else ("⬇️ thấp" if _buzz_z < -1 else None),
+                        delta_color="normal" if _buzz_z > 0 else "inverse",
+                        help="Fireant buzz deviation khỏi TB 20 phiên. >1 = đột biến tích cực",
+                    )
+                    _sv_cols[1].metric(
+                        "Neg Hold 💡",
+                        "✅" if _sent.get("sent_extreme_negative_hold", 0) > 0.5 else "—",
+                        help="Sentiment cực âm nhưng giá không giảm = tiềm năng phục hồi",
+                    )
+                    _sv_cols[2].metric(
+                        "Extreme Pos ⚡",
+                        "✅" if _sent.get("sent_extreme_positive", 0) > 0.5 else "—",
+                        help="Sentiment cực dương 5 phiên = momentum tốt",
+                    )
+                    _sv_cols[3].metric(
+                        "Neutral Mom 📊",
+                        "✅" if _sent.get("sent_neutral_momentum", 0) > 0.5 else "—",
+                        help="Sentiment trung tính + giá tăng = accumulation giai đoạn đầu",
+                    )
+                    _sent_div_flag = _sent.get("sent_vs_price_divergence", 0) > 0.5
+                    _sv_cols[4].metric(
+                        "Divergence ⚠️",
+                        "⚠️ Cẩn thận" if _sent_div_flag else "— OK",
+                        delta_color="inverse" if _sent_div_flag else "off",
+                        help="Sentiment vs giá đang đi ngược chiều = caution signal",
+                    )
+
                 # ── S1 Wyckoff VSA card (v2.0, Sprint 5) ─────────────────────
                 _wyk = pick.get("wyckoff") or {}
                 if _wyk:
@@ -957,6 +998,7 @@ if do_predict or "alpha_picks" in st.session_state:
                                 "sizing":          _sz,
                                 "sm":              _sm,
                                 "wyckoff":         _wyk,
+                                "sentiment":       _sent,
                             },
                             ensure_ascii=False,
                             indent=2,
@@ -1448,6 +1490,58 @@ with st.expander("📊 Track Record — Out-of-Sample (Module B)", expanded=Fals
 
     except Exception as _tl_ex:
         st.warning(f"Track Record chưa khả dụng: {_tl_ex}")
+
+# ────────────────────────────────────────────────────────────────────────────────
+# SECTION 8 — Sentiment Coverage Overview (Sprint 13)
+# ────────────────────────────────────────────────────────────────────────────────
+st.divider()
+with st.expander("🧠 Sentiment Coverage — VN30 (Sprint 13)", expanded=False):
+    st.caption(
+        "Coverage của bảng `sentiment_snapshots` trong SQLite. "
+        "Cần backfill trước khi retrain: "
+        "`python scripts/backfill_sentiment.py --days 90`"
+    )
+    try:
+        from data.sentiment_logger import get_sentiment_coverage as _get_scov
+        _scov_df = _get_scov(VN30_TICKERS)
+        if _scov_df.empty:
+            st.info(
+                "Chưa có sentiment data trong SQLite.\n\n"
+                "**Bước 1** — Backfill: `python scripts/backfill_sentiment.py --days 90`\n\n"
+                "**Bước 2** — Sau đó Retrain model để model học sentiment features."
+            )
+        else:
+            _n_cov = len(_scov_df)
+            _n_total = len(VN30_TICKERS)
+            _avg_d   = float(_scov_df["days_logged"].mean())
+            _max_d   = int(_scov_df["days_logged"].max())
+            _scov_summary = st.columns(3)
+            _scov_summary[0].metric("Tickers có data", f"{_n_cov}/{_n_total}")
+            _scov_summary[1].metric("TB ngày/ticker", f"{_avg_d:.0f}")
+            _scov_summary[2].metric("Tối đa", f"{_max_d} ngày")
+            st.dataframe(
+                _scov_df.rename(columns={
+                    "ticker":     "Mã",
+                    "days_logged":"Ngày",
+                    "first_date": "Từ",
+                    "last_date":  "Đến",
+                    "avg_buzz":   "Avg Buzz",
+                    "avg_sent":   "Avg Sentiment",
+                }).style.format({
+                    "Avg Buzz":      "{:.1f}",
+                    "Avg Sentiment": "{:+.3f}",
+                }).background_gradient(subset=["Ngày"], cmap="YlGn"),
+                hide_index=True,
+                use_container_width=True,
+            )
+            # Chi dẫn tiếp theo
+            if _n_cov < _n_total:
+                _missing = [t for t in VN30_TICKERS if t not in _scov_df["ticker"].values]
+                st.warning(f"⚠️ Chưa có data: `{'`, `'.join(_missing)}`")
+            if _avg_d < 30:
+                st.info("💡 TB < 30 ngày/ticker — nên backfill ít nhất 90 ngày để model học tốt.")
+    except Exception as _sc_ex:
+        st.caption(f"Sentiment coverage: {_sc_ex}")
 
 with st.expander("📖 Methodology & Disclaimer", expanded=False):
     st.markdown("""

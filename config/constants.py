@@ -39,19 +39,21 @@ INDICES = {
     "VN30":  "VN30",
 }
 
-# ── VN30 Basket (snapshot – cập nhật định kỳ) ─────────────────────────────────
+# ── VN30 Basket (cập nhật kỳ cơ cấu 02/2026) ────────────────────────────────
+# Đã loại: BCM (01/2026), BVH (07/2025), POW (01/2026)
+# Thêm mới: LPB (LienVietPostBank), BSR (Bình Sơn Refinery), VPL
 VN30_TICKERS = [
-    "ACB", "BCM", "BID", "BVH", "CTG", "FPT", "GAS", "GVR",
-    "HDB", "HPG", "MBB", "MSN", "MWG", "PLX", "POW", "SAB",
+    "ACB", "BID", "BSR", "CTG", "FPT", "GAS", "GVR",
+    "HDB", "HPG", "LPB", "MBB", "MSN", "MWG", "PLX", "SAB",
     "SHB", "SSB", "SSI", "STB", "TCB", "TPB", "VCB", "VHM",
-    "VIB", "VIC", "VJC", "VNM", "VPB", "VRE",
+    "VIB", "VIC", "VJC", "VNM", "VPB", "VPL", "VRE",
 ]
 
 # ── Sector Map (nhóm ngành GICS-like cho HOSE/HNX) ────────────────────────────
 SECTOR_MAP: dict[str, list[str]] = {
-    "Ngân hàng":         ["ACB", "BID", "CTG", "HDB", "MBB", "SHB", "STB",
+    "Ngân hàng":         ["ACB", "BID", "CTG", "HDB", "LPB", "MBB", "SHB", "STB",
                           "TCB", "TPB", "VCB", "VIB", "VPB", "SSB"],
-    "Bất động sản":      ["VHM", "VIC", "VRE", "BCM", "NVL", "DXG", "KDH",
+    "Bất động sản":      ["VHM", "VIC", "VPL", "VRE", "BCM", "NVL", "DXG", "KDH",
                           "PDR", "DIG"],
     "Thép – Vật liệu":   ["HPG", "HSG", "NKG", "POM"],
     "Dầu khí – Năng lượng": ["GAS", "PLX", "POW", "PVD", "PVS", "BSR"],

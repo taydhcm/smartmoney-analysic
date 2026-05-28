@@ -41,3 +41,21 @@ ENV/
 # ── OS ────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+# ── Database files (runtime data, không commit) ───────────────
+data/db/*.db
+ml/artifacts/*.db
+
+# ── Debug / test output files ─────────────────────────────────
+_debug_*.py
+_debug_*.txt
+_test_out.txt
+_test_sprint*_out.txt
+_retrain_out.txt
+_vn30_out.txt
+_s*.txt
+_s*.py
+
+# ── Image results & logs ──────────────────────────────────────
+img-result/
+logs/
